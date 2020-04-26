@@ -1,0 +1,259 @@
+mod LOGIC is
+    protecting NAT .
+    protecting QID .
+    protecting STRING .
+
+    sorts Instr Block Func .
+
+    ops unif dif pop rot dup : -> Instr [ctor] .
+    op branch : Qid Qid -> Instr [ctor] .
+    op v : Qid -> Instr [ctor] .
+    op nat : Nat -> Instr [ctor] .
+    op functor : Qid Nat -> Instr [ctor] .
+    op goto : Qid -> Instr [ctor] .
+
+    op func : Qid Stack -> Func [ctor] .
+
+    op nil : -> Instr [ctor] .
+    op __ : Instr Instr -> Instr [ctor assoc id: nil] .
+
+    op block_start_end : Qid Instr -> Block [ctor] .
+    op nil : -> Block [ctor] .
+    op __ : Block Block -> Block [ctor assoc id: nil] .
+
+    sorts BlockMap Configuration .
+    op mt : -> BlockMap [ctor] .
+    op _|->_ : Qid Instr -> BlockMap [ctor] .
+    op __ : BlockMap BlockMap -> BlockMap [ctor comm assoc id: mt] .
+    op [_,_] : BlockMap State -> Configuration [ctor] .
+
+    sorts Stack Unification Val .
+    subsort Nat < Val .
+    subsort Qid < Val .
+    subsort Func < Val .
+    subsort Val < Stack .
+    op nil : -> Stack [ctor] .
+    op __ : Stack Stack -> Stack [ctor assoc id: nil] .
+
+    op mt : -> Unification [ctor] .
+    op __ : Unification Unification -> Unification [ctor comm assoc id: mt] .
+    op _=_ : Val Val -> Unification [ctor comm] .
+    op _/=_ : Val Val -> Unification [ctor comm] .
+
+    sort State .
+    op nil : -> State [ctor] .
+    op state : Instr Unification Stack -> State [ctor] .
+    op __ : State State -> State [ctor assoc id: nil] .
+
+    var B Bs : Block .
+    var BM1 BM2 Blocks : BlockMap .
+    vars L L1 L2 X Y : Qid .
+    var I I1 I2 Is : Instr .
+
+    op program : Block -> Configuration .
+    eq program(B) = buildConfig(mt, B) .
+
+    op buildConfig : BlockMap Block -> Configuration .
+    eq buildConfig(Blocks, nil) = [Blocks, state(goto('main), mt, nil)] .
+    eq buildConfig(Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> Is), Bs) .
+
+    var Unif : Unification .
+    var S : Stack .
+
+    var V W : Val .
+
+    var States : State .
+
+    rl [goto]:
+        [ (L |-> Is) Blocks , state(goto(L), Unif, S) States ]
+        =>
+        [ (L |-> Is) Blocks , States state(Is, Unif, S) ] .
+
+    rl [branch]:
+        [ (L1 |-> I1) (L2 |-> I2) Blocks , state(branch(L1, L2), Unif, S) States ]
+        =>
+        [ (L1 |-> I1) (L2 |-> I2) Blocks , States state(I1, Unif, S) state(I2, Unif, S) ] .
+
+    rl [var]:
+        [ Blocks , state(v(V) Is, Unif, S) States ]
+        =>
+        [ Blocks , States state(Is, Unif, V S) ] .
+
+    rl [dup]:
+        [ Blocks, state(dup Is, Unif, V S) States ]
+        =>
+        [ Blocks, States state(Is, Unif, V V S) ] .
+
+    rl [rot]:
+        [ Blocks, state(rot Is, Unif, V S) States ]
+        =>
+        [ Blocks, States state(Is, Unif, S V) ] .
+
+    rl [pop]:
+        [ Blocks, state(rot Is, Unif, V S) States ]
+        =>
+        [ Blocks, States state(Is, Unif, S) ] .
+
+    var N : Nat .
+    rl [nat]:
+        [ Blocks, state(nat(N) Is, Unif, S) States ]
+        =>
+        [ Blocks, States state(Is, Unif, N S) ] .
+
+    op runUnif : Instr Unification Stack -> State [ctor] .
+    op checkUnif : Instr Unification Stack -> State [ctor] .
+
+    var F : Qid .
+    vars Vs Args : Stack .
+
+    op varsOf : Unification -> Stack .
+    op varsOf : Val -> Val .
+    op varsOf : Stack -> Stack .
+    eq varsOf(X) = X .
+    eq varsOf(N) = nil .
+    eq varsOf(func(F, Args)) = varsOf(Args) .
+    eq varsOf(nil) = nil .
+    eq varsOf(V Vs) = varsOf(V) varsOf(Vs) .
+    eq varsOf(mt) = nil .
+    eq varsOf((V = W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
+    eq varsOf((V /= W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
+
+    var Vars : Stack .
+    op _in_ : Val Stack -> Bool .
+    eq V in nil = false .
+    eq V in (W Vs) = (V == W) or (V in Vs ) .
+
+    var Fun : Func .
+    var G : Qid .
+    var M : Nat .
+    vars ArgsG ArgsF Ws : Stack .
+
+    var T : Val .
+
+    op unifPossible : Unification -> Bool .
+    eq unifPossible(mt) = true .
+    eq unifPossible((N = M) Unif) = N == M and unifPossible(Unif) .
+    eq unifPossible((X /= T) Unif) = X =/= T and unifPossible(Unif) .
+    eq unifPossible((X = T) Unif) = not (X in varsOf(T)) and unifPossible(Unif) .
+    --- If this is left over after peforming unification, then we must have failed because we would decompose if F == G.
+    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = false .
+
+    op makeEqualities : Stack Stack -> Unification .
+    eq makeEqualities(nil, nil) = mt .
+    eq makeEqualities(V Vs, W Ws) = (V = W) makeEqualities(Vs, Ws) .
+
+    op notVar : Val -> Bool .
+    eq notVar(X) = false .
+    eq notVar(Fun) = true .
+    eq notVar(N) = true .
+
+    var U : Unification .
+
+    op substitute : Qid Val Unification -> Unification .
+    op substitute : Qid Val Stack -> Stack .
+    op substitute : Qid Val Val -> Val .
+    eq substitute(X, W, mt) = mt .
+    eq substitute(X, W, Y = V) = if X == Y then (W = V) else (Y = V) fi .
+    eq substitute(X, W, Y /= V) = if X == Y then (W /= V) else (Y /= V) fi .
+    ceq substitute(X, W, (V = T) Unif) = substitute(X, W, V = T) substitute(X, W, Unif) if Unif =/= mt .
+    ceq substitute(X, W, (V /= T) Unif) = substitute(X, W, V /= T) substitute(X, W, Unif) if Unif =/= mt .
+    eq substitute(X, W, X) = W .
+    eq substitute(X, W, N) = N .
+    eq substitute(X, W, func(F, Args)) = func(F, substitute(X, W, Args)) .
+    eq substitute(X, W, nil) = nil .
+    eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
+
+    op performUnif : Unification -> Unification .
+    eq performUnif((V = V) Unif) = performUnif(Unif) .
+    ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
+        if not (X in varsOf(T)) and notVar(T) and X in varsOf(Unif) .
+    ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
+        if X =/= Y and X in varsOf(Unif) and Y in varsOf(Unif) .
+    eq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif) .
+    eq performUnif(Unif) = Unif [owise] .
+
+    rl [unif]:
+        [ Blocks, state(unif Is, Unif, V W S) States ]
+        =>
+        [ Blocks, checkUnif(Is, performUnif((V = W) Unif), S) States ] .
+
+    rl [dif]:
+        [ Blocks, state(dif Is, Unif, V W S) States ]
+        =>
+        [ Blocks, checkUnif(Is, performUnif((V /= W) Unif), S) States ] .
+
+    rl [checkUnif]:
+        [ Blocks, checkUnif(Is, Unif, S) States ]
+        =>
+        [ Blocks, States if unifPossible(Unif) then state(Is, Unif, S) else nil fi ] .
+
+    op take : Nat Stack -> Stack .
+    eq take(0, S) = nil .
+    eq take(N, nil) = nil .
+    eq take(s(N), V Vs) = V take(N, Vs) .
+
+    op drop : Nat Stack -> Stack .
+    eq drop(0, S) = S .
+    eq drop(N, nil) = nil .
+    eq drop(s(N), V Vs) = drop(N, Vs) .
+
+    rl [functor]:
+        [ Blocks, state(functor(X, N) Is, Unif, S) States ]
+        =>
+        [ Blocks, States state(Is, Unif, func(X, take(N, S)) drop(N, S)) ] .
+endm
+
+--- set trace on .
+
+rew program(
+block 'main start
+    v('X)
+    branch('X1, 'X2)
+end
+
+block 'X1 start
+    dup
+    nat(1)
+    rot
+    rot
+    unif
+    branch('Gt0, 'Lt0)
+end
+
+block 'X2 start
+    dup
+    nat(0)
+    rot
+    rot
+    unif
+    branch('Gt0, 'Lt0)
+end
+
+block 'Gt0 start
+    nat(3)
+    unif
+end
+
+block 'Lt0 start
+    nat(0)
+    unif
+end
+) .
+
+rew program(
+block 'main start
+    functor('empty, 0)
+    nat(1)
+    functor('cons, 2)
+    v(X)
+    unif
+
+    functor('empty, 0)
+    v(Y)
+    unif
+
+    v(X)
+    v(Y)
+    unif
+end) .
+

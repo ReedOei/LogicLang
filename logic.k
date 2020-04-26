@@ -74,6 +74,9 @@ module LOGIC
     rule isLt(A:Id, B:Id) => Id2String(A) <String Id2String(B)
     rule isLt(A:Int, B:Int) => A <Int B
 
+    rule isLt(.List, ListItem(B) Bs) => true
+    rule isLt(ListItem(A) As, .List) => false
+
     rule isLt(func(F, ArgsF), func(G, ArgsG)) =>
          (F <String G) orBool
          (F ==String G andBool isLt(ArgsF, ArgsG))
@@ -109,20 +112,32 @@ module LOGIC
          A =/=K B andBool
          (notBool (A in vars(Unif) andBool B in vars(Unif))) andBool
          (notBool (sameFuncName(A, B))) andBool
-         (notBool ((notBool A in vars(B)) andBool (notBool B in vars(B)) andBool (A in vars(Unif)))) andBool
+         (notBool ((notBool A in vars(B)) andBool notVar(B) andBool (A in vars(Unif)))) andBool
          unifDone(Unif)
 
+    syntax Set ::= makeEqualities(List, List) [function]
+
+    rule makeEqualities(.List, .List) => .Set
+    rule makeEqualities(ListItem(A) As, ListItem(B) Bs) => SetItem(A = B) makeEqualities(As, Bs)
+
+    syntax Bool ::= notVar(KItem) [function]
+
+    rule notVar(A:Id) => false
+    rule notVar(A:Func) => true
+    rule notVar(A:Int) => true
+
     rule performUnif(SetItem(A = A) Unif) => performUnif(Unif)
-    rule performUnif(SetItem(X = T) (Unif => Unif[X |-> T]))
+    rule performUnif(SetItem(X = T) SetItem(X = R) Unif) => performUnif(SetItem(X = T) SetItem(T = R) Unif)
         requires
-            X in vars(Unif) andBool
             (notBool X in vars(T)) andBool
-            (notBool T in vars(T)) // Note this will only happen if T is a variable.
-    rule performUnif(SetItem(A = B) (Unif => Unif[B |-> A]))
+            notVar(T)
+    rule performUnif(SetItem(A = B) Unif) => performUnif(SetItem(A = B) (Unif[B |-> A]))
         requires
             A =/=K B andBool
             A in vars(Unif) andBool
             B in vars(Unif)
+    rule performUnif(SetItem(func(F, Args1) = func(F, Args2)) Unif) =>
+        performUnif(makeEqualities(Args1, Args2) Unif)
     rule performUnif(Unif) => Unif
         requires unifDone(Unif)
 
@@ -262,6 +277,28 @@ module LOGIC
             =>
             States
             ListItem(state(Is, Unif, Stack ListItem(A)))
+        </states>
+
+    syntax List ::= take(Int, List) [function]
+                  | drop(Int, List) [function]
+
+    rule take(_, .List) => .List
+    rule take(0, _) => .List
+    rule take(N, ListItem(A) As) => ListItem(A) take(N -Int 1, As)
+        requires N >Int 0
+
+    rule drop(_, .List) => .List
+    rule drop(0, L) => L
+    rule drop(N, ListItem(A) As) => drop(N -Int 1, As)
+        requires N >Int 0
+
+    rule
+        <states>
+            ListItem(state((functor Name ArgN; Is), Unif, Stack))
+            States
+            =>
+            States
+            ListItem(state(Is, Unif, ListItem(func(Name, take(ArgN, Stack))) drop(ArgN, Stack)))
         </states>
 endmodule
 

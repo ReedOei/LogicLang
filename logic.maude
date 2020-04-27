@@ -7,12 +7,13 @@ mod LOGIC is
 
     sorts Instr Block Func .
 
-    ops call branch goto : -> Instr [ctor] .
+    ops call branch goto fail : -> Instr [ctor] .
     ops fresh nonvar isvar unif dif : -> Instr [ctor] .
     ops swap pop rot dup : -> Instr [ctor] .
     ops lt lte add sub : -> Instr [ctor] .
     op lookup : -> Instr [ctor] .
     op v : Qid -> Instr [ctor] .
+    op str : String -> Instr [ctor] .
     op lbl : Qid -> Instr [ctor] .
     op int : Int -> Instr [ctor] .
     op functor : Qid Nat -> Instr [ctor] .
@@ -37,23 +38,35 @@ mod LOGIC is
     subsort Qid < Val .
     subsort Func < Val .
     subsort Val < Stack .
+    op s : String -> Val [ctor] .
     op nil : -> Stack [ctor] .
     op __ : Stack Stack -> Stack [ctor assoc id: nil] .
 
     op mt : -> Unification [ctor] .
     op __ : Unification Unification -> Unification [ctor comm assoc id: mt] .
-    op _=_ : Val Val -> Unification [ctor comm] .
-    op _/=_ : Val Val -> Unification [ctor comm] .
+
+    sort UnificationItem .
+    subsort UnificationItem < Unification .
+    op _=_ : Val Val -> UnificationItem [ctor comm] .
+    op _/=_ : Val Val -> UnificationItem [ctor comm] .
+    op lt : Val Val -> UnificationItem [ctor] .
+    op lte : Val Val -> UnificationItem [ctor] .
+    op failure : -> UnificationItem [ctor] .
+
+    var U : UnificationItem .
 
     sort State .
     op nil : -> State [ctor] .
     op state : Instr Unification Stack -> State [ctor] .
+    op runUnif : Instr Unification Stack -> State [ctor] .
     op __ : State State -> State [ctor assoc id: nil] .
 
     var B Bs : Block .
     var BM1 BM2 Blocks : BlockMap .
     vars L L1 L2 X Y : Qid .
     var I I1 I2 Is : Instr .
+
+    var Str Str1 Str2 : String .
 
     op program : Block -> Configuration .
     eq program(B) = buildConfig(mt, B) .
@@ -117,16 +130,31 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(Is, Unif, N S) ] .
 
-    rl [add]:
-        [ Counter, Blocks, state(add Is, Unif, N M S) States ]
+    rl [string]:
+        [ Counter, Blocks, state(str(Str) Is, Unif, S) States ]
         =>
-        [ Counter, Blocks, States state(Is, Unif, (N + M) S) ] .
+        [ Counter, Blocks, States state(Is, Unif, s(Str) S) ] .
 
-    --- TODO: ADD A CONSTRAINT ENVIRONMENT TO EACH STATE (PROBBALY PART OF THE UNIFICATION)
+    crl [add]:
+        [ Counter, Blocks, state(add Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('add, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
     rl [lookupInt]:
         [ Counter, Blocks, state(lookup Is, Unif, N S) States ]
         =>
         [ Counter, Blocks, States state(Is, Unif, N S) ] .
+
+    rl [lookupFunc]:
+        [ Counter, Blocks, state(lookup Is, Unif, func(F, Args) S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, S func(F, Args)) ] .
+
+    rl [lookupStr]:
+        [ Counter, Blocks, state(lookup Is, Unif, s(Str) S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, S s(Str)) ] .
 
     rl [lookupVarIsInt]:
         [ Counter, Blocks, state(lookup Is, (X = N) Unif, X S) States ]
@@ -138,38 +166,41 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(Is, (X = func(F, Args)) Unif, func(F, Args) S) ] .
 
+    rl [lookupVarIsStr]:
+        [ Counter, Blocks, state(lookup Is, (X = s(Str)) Unif, X S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, (X = s(Str)) Unif, s(Str) S) ] .
+
     rl [lookupIsVar]:
         [ Counter, Blocks, state(lookup Is, (X = Y) Unif, X S) States ]
         =>
         [ Counter, Blocks, States ] .
 
-    rl [lookupFunc]:
-        [ Counter, Blocks, state(lookup Is, Unif, func(F, Args) S) States ]
+    crl [sub]:
+        [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States state(Is, Unif, S func(F, Args)) ] .
-
-    op sub : Int Int -> Int .
-    --- For some reason it doesn't like N - M (multiple parses)
-    eq sub(N, M) = (N + - M) .
-    rl [sub]:
-        [ Counter, Blocks, state(sub Is, Unif, N M S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, Unif, sub(N, M) S) ] .
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('sub, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
 
     rl [lt]:
-        [ Counter, Blocks, state(lt Is, Unif, N M S) States ]
+        [ Counter, Blocks, state(lt Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States if N < M then state(Is, Unif, S) else nil fi ] .
+        [ Counter, Blocks, States runUnif(Is, lt(V, W) Unif, S) ] .
 
     rl [lte]:
-        [ Counter, Blocks, state(lte Is, Unif, N M S) States ]
+        [ Counter, Blocks, state(lte Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States if N <= M then state(Is, Unif, S) else nil fi ] .
+        [ Counter, Blocks, States runUnif(Is, lte(V, W) Unif, S) ] .
 
     rl [fresh]:
         [ Counter, Blocks, state(fresh Is, Unif, S) States ]
         =>
         [ Counter + 1, Blocks, States state(Is, Unif, qid(string(Counter, 10)) S) ] .
+
+    rl [fail]:
+        [ Counter, Blocks, state(fail Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States ] .
 
     rl [isvar]:
         [ Counter, Blocks, state(isvar Is, Unif, V S) States ]
@@ -194,12 +225,15 @@ mod LOGIC is
     op varsOf : Stack -> Stack .
     eq varsOf(X) = X .
     eq varsOf(N) = nil .
+    eq varsOf(s(Str)) = nil .
     eq varsOf(func(F, Args)) = varsOf(Args) .
     eq varsOf(nil) = nil .
     eq varsOf(V Vs) = varsOf(V) varsOf(Vs) .
     eq varsOf(mt) = nil .
     eq varsOf((V = W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
     eq varsOf((V /= W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
+    eq varsOf(lt(V, W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
+    eq varsOf(lte(V, W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
 
     var Vars : Stack .
     op _in_ : Val Stack -> Bool .
@@ -212,12 +246,17 @@ mod LOGIC is
 
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
+    eq unifPossible(failure Unif) = false .
     eq unifPossible((N = M) Unif) = N == M and unifPossible(Unif) .
-    eq unifPossible((X /= T) Unif) = X =/= T and unifPossible(Unif) .
+    eq unifPossible((s(Str1) = s(Str2)) Unif) = Str1 == Str2 and unifPossible(Unif) .
+    eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
     eq unifPossible((X = T) Unif) = not (X in varsOf(T)) and unifPossible(Unif) .
     --- If this is left over after peforming unification, then we must have failed because we would decompose if F == G.
     eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = false .
     eq unifPossible((N = func(F, Args)) Unif) = false .
+    eq unifPossible((N = s(Str)) Unif) = false .
+    eq unifPossible((func(F, Args) = s(Str)) Unif) = false .
+    eq unifPossible(U Unif) = unifPossible(Unif) [owise] .
 
     op makeEqualities : Stack Stack -> Unification .
     eq makeEqualities(nil, nil) = mt .
@@ -227,19 +266,20 @@ mod LOGIC is
     eq notVar(X) = false .
     eq notVar(Fun) = true .
     eq notVar(N) = true .
-
-    var U : Unification .
+    eq notVar(s(Str)) = true .
 
     op substitute : Qid Val Unification -> Unification .
     op substitute : Qid Val Stack -> Stack .
     op substitute : Qid Val Val -> Val .
     eq substitute(X, W, mt) = mt .
     eq substitute(X, W, V = T) = (substitute(X, W, V) = substitute(X, W, T)) .
+    eq substitute(X, W, lt(V, T)) = lt(substitute(X, W, V), substitute(X, W, T)) .
+    eq substitute(X, W, lte(V, T)) = lte(substitute(X, W, V), substitute(X, W, T)) .
     eq substitute(X, W, V /= T) = (substitute(X, W, V) /= substitute(X, W, T)) .
-    ceq substitute(X, W, (V = T) Unif) = substitute(X, W, V = T) substitute(X, W, Unif) if Unif =/= mt .
-    ceq substitute(X, W, (V /= T) Unif) = substitute(X, W, V /= T) substitute(X, W, Unif) if Unif =/= mt .
+    eq substitute(X, W, U Unif) = substitute(X, W, U) substitute(X, W, Unif) .
     eq substitute(X, W, Y) = if X == Y then W else Y fi .
     eq substitute(X, W, N) = N .
+    eq substitute(X, W, s(Str)) = s(Str) .
     eq substitute(X, W, func(F, Args)) = func(F, substitute(X, W, Args)) .
     eq substitute(X, W, nil) = nil .
     eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
@@ -251,20 +291,67 @@ mod LOGIC is
     ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
         if X =/= Y and X in varsOf(Unif) and Y in varsOf(Unif) .
     eq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif) .
+
+    vars NewV NewW : Val .
+    ceq performUnif((V = W) Unif) = performUnif((NewV = W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif((V /= W) Unif) = performUnif((NewV /= W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lt(V, W) Unif) = performUnif(lt(NewV, W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lt(V, W) Unif) = performUnif(lt(V, NewW) Unif)
+        if computed(NewW) := simplify(W) .
+    ceq performUnif(lte(V, W) Unif) = performUnif(lte(NewV, W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lte(V, W) Unif) = performUnif(lte(V, NewW) Unif)
+        if computed(NewW) := simplify(W) .
+
+    eq performUnif(lt(N, M) Unif) =
+        if N < M then performUnif(Unif) else failure fi .
+    eq performUnif(lte(N, M) Unif) =
+        if N <= M then performUnif(Unif) else failure fi .
+
     eq performUnif(Unif) = Unif [owise] .
 
+    sort Computed .
+    op computed : Val -> Computed [ctor] .
+    op computed : Stack -> Computed [ctor] .
+    op insufficient : -> Computed [ctor] .
+
+    vars NewVs NewArgs : Stack .
+
+    op sub : Int Int -> Int .
+    --- For some reason it doesn't like N - M (says multiple possible parses)
+    eq sub(N, M) = (N + - M) .
+
+    op simplify : Val -> Computed .
+    ceq simplify(func(F, Args)) = computed(func(F, NewArgs))
+        if computed(NewArgs) := simplifyStack(Args) .
+    eq simplify(func('add, N M)) = computed(N + M) .
+    eq simplify(func('sub, N M)) = computed(sub(N, M)) .
+    eq simplify(V) = insufficient [owise] .
+
+    op simplifyStack : Stack -> Computed .
+    ceq simplifyStack(Vs V Ws) = computed(Vs V Ws)
+        if computed(NewV) := simplify(V) .
+    eq simplifyStack(Vs) = insufficient [owise] .
+
     var NewUnif : Unification .
-    crl [unif]:
+    rl [unif]:
         [ Counter, Blocks, state(unif Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States if unifPossible(NewUnif) then state(Is, NewUnif, S) else nil fi ]
-        if NewUnif := performUnif((V = W) Unif) .
+        [ Counter, Blocks, States runUnif(Is, (V = W) Unif, S) ] .
 
-    crl [dif]:
+    rl [dif]:
         [ Counter, Blocks, state(dif Is, Unif, V W S) States ]
         =>
+        [ Counter, Blocks, States runUnif(Is, (V /= W) Unif, S) ] .
+
+    crl [runUnif]:
+        [ Counter, Blocks, runUnif(Is, Unif, S) States ]
+        =>
         [ Counter, Blocks, States if unifPossible(NewUnif) then state(Is, NewUnif, S) else nil fi ]
-        if NewUnif := performUnif((V /= W) Unif) .
+        if NewUnif := performUnif(Unif) .
 
     var Num : Nat .
     op take : Nat Stack -> Stack .
@@ -296,136 +383,96 @@ mod LOGIC is
     eq reachable(X, Unif, S) = false [owise] .
 
     op reachableFrom : Qid Qid Unification -> Bool .
-    eq reachableFrom(X, Y, (X = Y) Unif) = true .
+    ceq reachableFrom(X, Y, (Y = V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, (Y /= V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lt(Y, V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lt(V, Y) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lte(Y, V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lte(V, Y) Unif) = true if reachable(X, Unif, V) .
     eq reachableFrom(X, X, Unif) = true .
-    eq reachableFrom(X, Y, (Y = func(F, Args)) Unif) = reachable(X, Unif, Args) .
     eq reachableFrom(X, Y, Unif) = false [owise] .
 
-    crl [garbageCollect]:
+    crl [garbageCollectMid]:
+        [ Counter, Blocks, state(Is, (X = V) Unif, S) States ]
+        =>
+        [ Counter, Blocks, state(Is, Unif, S) States ]
+        if not reachable(X, Unif, S) .
+
+    crl [garbageCollectEnd]:
         state(Is, (X = V) Unif, S)
         =>
         state(Is, Unif, S)
         if not reachable(X, Unif, S) .
 endm
 
+mod LOGIC-MACRO is
+    protecting LOGIC .
+
+    var V : Val .
+    vars Args Vs : Stack .
+
+    var Str : String .
+
+    var N : Nat .
+    vars F X L : Qid .
+
+    op length : Stack -> Nat .
+    eq length(nil) = 0 .
+    eq length(V Vs) = 1 + length(Vs) .
+
+    op toInstr : Stack -> Instr .
+    eq toInstr(X) = v(X) .
+    eq toInstr(N) = int(N) .
+    eq toInstr(s(Str)) = str(Str) .
+    eq toInstr(func(F, Args)) = toInstr(Args) functor(F, length(Args)) .
+    eq toInstr(nil) = nil .
+    eq toInstr(V Vs) = toInstr(Vs) toInstr(V) .
+
+    op doCall : Qid Func -> Instr .
+    eq doCall(L, func(F, Args)) =
+        lbl(L)
+        toInstr(func(F, Args))
+        call .
+
+    var Fun : Func .
+
+    op query : Stack Func -> Block .
+    eq query(Vs, Fun) =
+        block 'main start
+            toInstr(Vs)
+            doCall('end, Fun)
+        end
+        block 'end start
+            nil
+        end
+        .
+
+    op facts : Stack -> Block .
+    op factGen : Nat Stack -> Block .
+
+    var Fs : Stack .
+
+    eq facts(Fs) = factGen(0, Fs) .
+
+    eq factGen(N, nil) = nil .
+    eq factGen(N, func(F, Args) Fs) =
+        block qid(string(F) + string(N, 10)) start
+            genUnif(Args)
+            goto
+        end
+        factGen(N, Fs) .
+
+    op genUnif : Stack -> Instr .
+    eq genUnif(nil) = nil .
+    eq genUnif(V Vs) = toInstr(V) unif genUnif(Vs) .
+endm
+
 --- set trace on .
-
---- rew program(
---- block 'main start
----     v('X)
----     lbl('X2)
----     lbl('X1)
----     branch
---- end
-
---- block 'X1 start
----     dup
----     int(1)
----     unif
-
----     lbl('Gt0)
----     lbl('Lt0)
----     branch
---- end
-
---- block 'X2 start
----     dup
----     int(0)
----     unif
-
----     lbl('Gt0)
----     lbl('Lt0)
----     branch
---- end
-
---- block 'Gt0 start
----     int(3)
----     unif
---- end
-
---- block 'Lt0 start
----     int(0)
----     unif
---- end
---- ) .
-
---- rew program(
---- block 'main start
----     functor('empty, 0)
----     int(1)
----     functor('cons, 2)
----     v('X)
----     unif
-
----     functor('empty, 0)
----     v('Y)
----     unif
-
----     v('X)
----     v('Y)
----     unif
---- end) .
-
---- set trace on .
---- set trace eq off .
+--- red performUnif(('1 = func('empty, nil)) ('2 = 1) ('X = func('cons, 0 func('empty, nil))) lt(10, '2)) .
 rew program(
-block 'mainbetween start
-    v('X)
-    lbl('difend)
-    int(1)
-    int(0)
-    v('X)
-    lbl('between)
-    goto
-end
+query('X 'Total, func('range, 'X 0 10))
 
-block 'difend start
-    v('X)
-    lookup
-    int(4)
-    lt
-end
-
-block 'main start
-    v('X)
-    v('Total)
-    lbl('mainafterrange)
-    int(10)
-    int(0)
-    v('X)
-    lbl('range)
-    goto
-end
-
-block 'mainafterrange start
-    lbl('end)
-    v('X)
-    v('Total)
-    lbl('sum)
-    goto
-end
-
-block 'mainlength start
-    v('L)
-    v('Length)
-    lbl('mainafter)
-    v('L)
-    int(12)
-    functor('length, 2)
-    call
-end
-
-block 'mainafter start
-    lbl('end)
-    v('L)
-    v('Length)
-    functor('length, 2)
-    call
-end
-
-block 'end start
-    nil
-end
+facts(func('age, s("reed") 21))
 
 block 'length start
     lbl('lengthempty)
@@ -476,7 +523,6 @@ block 'lengthconsvar start
 end
 
 block 'lengthconsvarend start
-    lookup
     int(1)
     add
     unif
@@ -612,10 +658,6 @@ end
 
 block 'sumend start
     --- TailSum H Res
-    lookup
-    swap
-    lookup
-    swap
     add
     unif
     goto

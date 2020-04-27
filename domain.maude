@@ -18,7 +18,6 @@ fmod DOMAIN is
     eq minExInt(negInf, High) = negInf .
     eq minExInt(N, M) = min(N, M) .
 
-
     sort Domain .
     op universal : -> Domain [ctor] .
     op empty : -> Domain [ctor] .

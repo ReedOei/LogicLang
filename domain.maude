@@ -6,14 +6,17 @@ fmod DOMAIN is
     sort ExInt .
     subsort Int < ExInt .
     ops posInf negInf : -> ExInt [ctor] .
+    eq posInf + N = posInf .
+    eq negInf + N = negInf .
+    eq posInf - N = posInf .
+    eq negInf - N = negInf .
 
     op maxExInt : ExInt ExInt -> ExInt [comm] .
-    op minExInt : ExInt ExInt -> ExInt  [comm].
-
     eq maxExInt(posInf, Low) = posInf .
     eq maxExInt(negInf, High) = High .
     eq maxExInt(N, M) = max(N, M) .
 
+    op minExInt : ExInt ExInt -> ExInt  [comm].
     eq minExInt(posInf, Low) = Low .
     eq minExInt(negInf, High) = negInf .
     eq minExInt(N, M) = min(N, M) .
@@ -28,9 +31,18 @@ fmod DOMAIN is
     vars Dom Dom1 Dom2 : Domain .
     vars Low High Low1 High1 Low2 High2 : ExInt .
 
+    op complement : Domain -> Domain .
+    eq complement(universal) = empty .
+    eq complement(empty) = universal .
+    eq complement(intersect(Dom1, Dom2)) = complement(Dom1) U complement(Dom2) .
+    eq complement(Dom1 U Dom2) = intersect(complement(Dom1), complement(Dom2)) .
+    eq complement(range(Low, High)) = range(negInf, Low - 1) U range(High + 1, posInf) .
+
     eq range(posInf, negInf) = empty .
     eq range(N, negInf) = empty .
     eq range(posInf, M) = empty .
+    eq range(negInf, negInf) = empty .
+    eq range(posInf, posInf) = empty .
     ceq range(N, M) = empty if N > M .
 
     vars E1 E2 : ExInt .

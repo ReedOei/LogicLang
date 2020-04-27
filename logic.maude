@@ -1,8 +1,12 @@
+load domain
+
 mod LOGIC is
     protecting INT .
     protecting QID .
     protecting STRING .
     protecting CONVERSION .
+
+    protecting DOMAIN .
 
     sorts Instr Block Func .
 
@@ -51,7 +55,7 @@ mod LOGIC is
     op lte : Val Val -> UnificationItem [ctor] .
     op failure : -> UnificationItem [ctor] .
 
-    var U : UnificationItem .
+    var UIt : UnificationItem .
 
     sort State .
     op nil : -> State [ctor] .
@@ -138,7 +142,6 @@ mod LOGIC is
         =>
         [ Counter + 1, Blocks, States runUnif(Is, (X = func('add, V W)) Unif, X S) ]
         if X := qid(string(Counter, 10)) .
-
 
     crl [sub]:
         [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
@@ -227,7 +230,7 @@ mod LOGIC is
     eq unifPossible((N = func(F, Args)) Unif) = false .
     eq unifPossible((N = s(Str)) Unif) = false .
     eq unifPossible((func(F, Args) = s(Str)) Unif) = false .
-    eq unifPossible(U Unif) = unifPossible(Unif) [owise] .
+    eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
 
     op makeEqualities : Stack Stack -> Unification .
     eq makeEqualities(nil, nil) = mt .
@@ -247,7 +250,7 @@ mod LOGIC is
     eq substitute(X, W, lt(V, T)) = lt(substitute(X, W, V), substitute(X, W, T)) .
     eq substitute(X, W, lte(V, T)) = lte(substitute(X, W, V), substitute(X, W, T)) .
     eq substitute(X, W, V /= T) = (substitute(X, W, V) /= substitute(X, W, T)) .
-    eq substitute(X, W, U Unif) = substitute(X, W, U) substitute(X, W, Unif) .
+    eq substitute(X, W, UIt Unif) = substitute(X, W, UIt) substitute(X, W, Unif) .
     eq substitute(X, W, Y) = if X == Y then W else Y fi .
     eq substitute(X, W, N) = N .
     eq substitute(X, W, s(Str)) = s(Str) .
@@ -282,7 +285,49 @@ mod LOGIC is
     eq performUnif(lte(N, M) Unif) =
         if N <= M then performUnif(Unif) else failure fi .
 
+    --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
+    ceq performUnif(Unif) = performUnif(substitute(X, V, Unif))
+        if (Vs X Ws) := varsOf(Unif) /\
+           not (inEquation(X, Unif)) /\
+           computed(V) := domToVals(unifToDom(X, Unif)) .
+
     eq performUnif(Unif) = Unif [owise] .
+
+    op inEquation : Qid Unification -> Bool .
+    eq inEquation(X, (X = V) Unif) = true .
+    eq inEquation(X, Unif) = false [owise] .
+
+    op unifToDom : Qid Unification -> Domain .
+    eq unifToDom(X, mt) = universal .
+    eq unifToDom(X, lt(X, M) Unif) = intersect(range(negInf, sub(M, 1)), unifToDom(X, Unif)) .
+    eq unifToDom(X, lte(X, M) Unif) = intersect(range(negInf, M), unifToDom(X, Unif)) .
+    eq unifToDom(X, lt(N, X) Unif) = intersect(range(N + 1, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, lte(N, X) Unif) = intersect(range(N, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, (X = N) Unif) = range(N, N) .
+    eq unifToDom(X, (X /= N) Unif) = intersect(range(negInf, sub(N, 1)) U range(N + 1, posInf), unifToDom(X, Unif)) .
+    ceq unifToDom(X, (V = W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, (V /= W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, lt(V, W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, lte(V, W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+
+    vars Dom1 Dom2 Dom : Domain .
+
+    --- Will yield computed(Vs) if the domain is finite
+    op domToVals : Domain -> Computed .
+    eq domToVals(empty) = computed(nil) .
+    eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
+    ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
+        if computed(Vs) := domToVals(Dom1) /\
+           computed(Ws) := domToVals(Dom2) .
+    eq domToVals(Dom) = insufficient [owise] .
+
+    op buildRange : Int Int -> Stack .
+    ceq buildRange(N, M) = N buildRange(N + 1, M) if N <= M .
+    eq buildRange(N, M) = nil [owise] .
 
     sort Computed .
     op computed : Val -> Computed [ctor] .
@@ -457,13 +502,20 @@ mod LOGIC-MACRO is
             lbl(X)
             goto
         end .
-    eq genBranches(X Y Vs) =
+    eq genBranches(X Y) =
+        block qid("branchblock" + string(X)) start
+            lbl(X)
+            lbl(Y)
+            branch
+        end .
+    ceq genBranches(X Y Vs) =
         block qid("branchblock" + string(X)) start
             lbl(X)
             lbl(qid("branchblock" + string(Y)))
             branch
         end
-        genBranches(Y Vs) .
+        genBranches(Y Vs)
+        if Vs =/= nil .
 
     op genGotos : Block -> Block .
     eq genGotos(Bs) = genBranches(extractNames(Bs)) Bs .
@@ -509,10 +561,10 @@ query(
     func('sum, 'Total 'X)
 )
 
---- facts(
----     func('age, s("reed") 21)
----     func('age, s("meg") 22)
---- )
+facts(
+    func('age, s("reed") 21)
+    func('age, s("meg") 22)
+)
 
 block 'length start
     lbl('lengthempty)

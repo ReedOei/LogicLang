@@ -1,6 +1,6 @@
-load logic.maude
+load logic
 
-rew LOGIC : program(
+rew in LOGIC : program(
 block 'main start
     v('X)
     lbl('X2)
@@ -39,7 +39,7 @@ block 'Lt0 start
 end
 ) .
 
-rew LOGIC : program(
+rew in LOGIC : program(
 block 'main start
     functor('empty, 0)
     int(1)

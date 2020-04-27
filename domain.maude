@@ -1,0 +1,57 @@
+fmod DOMAIN is
+    protecting INT .
+
+    vars N M : Int .
+
+    sort ExInt .
+    subsort Int < ExInt .
+    ops posInf negInf : -> ExInt [ctor] .
+
+    op maxExInt : ExInt ExInt -> ExInt [comm] .
+    op minExInt : ExInt ExInt -> ExInt  [comm].
+
+    eq maxExInt(posInf, Low) = posInf .
+    eq maxExInt(negInf, High) = High .
+    eq maxExInt(N, M) = max(N, M) .
+
+    eq minExInt(posInf, Low) = Low .
+    eq minExInt(negInf, High) = negInf .
+    eq minExInt(N, M) = min(N, M) .
+
+
+    sort Domain .
+    op universal : -> Domain [ctor] .
+    op empty : -> Domain [ctor] .
+    op range : ExInt ExInt -> Domain [ctor] .
+    op intersect : Domain Domain -> Domain [comm assoc] .
+    op _U_ : Domain Domain -> Domain [comm assoc] .
+
+    vars Dom Dom1 Dom2 : Domain .
+    vars Low High Low1 High1 Low2 High2 : ExInt .
+
+    eq range(posInf, negInf) = empty .
+    eq range(N, negInf) = empty .
+    eq range(posInf, M) = empty .
+    ceq range(N, M) = empty if N > M .
+
+    vars E1 E2 : ExInt .
+
+    op isLte : ExInt ExInt -> Bool .
+    eq isLte(negInf, High) = true .
+    eq isLte(Low, posInf) = true .
+    eq isLte(N, M) = N <= M .
+    eq isLte(E1, E2) = false [owise] .
+
+    ceq range(Low1, High1) U range(Low2, High2) = range(Low1, High2)
+        if isLte(Low2, High1) and isLte(Low1, Low2) and isLte(Low1, High1) and isLte(Low2, High2) .
+
+    eq empty U Dom = Dom .
+    eq universal U Dom = universal .
+
+    eq intersect(empty, Dom) = empty .
+    eq intersect(universal, Dom) = Dom .
+    eq intersect(range(Low1, High1), range(Low2, High2)) =
+        range(maxExInt(Low1, Low2), minExInt(High1, High2)) .
+    eq intersect(Dom, Dom1 U Dom2) = intersect(Dom, Dom1) U intersect(Dom, Dom2) .
+endfm
+

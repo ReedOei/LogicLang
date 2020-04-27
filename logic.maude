@@ -32,7 +32,7 @@ mod LOGIC is
 
     sorts BlockMap Configuration .
     op mt : -> BlockMap [ctor] .
-    op _|->_ : Qid Instr -> BlockMap [ctor] .
+    op _|->_ : Qid Block -> BlockMap [ctor] .
     op __ : BlockMap BlockMap -> BlockMap [ctor comm assoc id: mt] .
     op [_,_,_] : Nat BlockMap State -> Configuration [ctor] .
 
@@ -64,7 +64,7 @@ mod LOGIC is
     op runUnif : Instr Unification Stack -> State [ctor] .
     op __ : State State -> State [ctor assoc id: nil] .
 
-    var B Bs : Block .
+    var B Bs Bs1 Bs2 : Block .
     var BM1 BM2 Blocks : BlockMap .
     vars L L1 L2 X Y : Qid .
     var I I1 I2 Is : Instr .
@@ -76,7 +76,8 @@ mod LOGIC is
 
     op buildConfig : BlockMap Block -> Configuration .
     eq buildConfig(Blocks, nil) = [0, Blocks, state(lbl('main) goto, mt, nil)] .
-    eq buildConfig(Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> Is), Bs) .
+    eq buildConfig((L |-> B) Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> B block L start Is end), Bs) .
+    eq buildConfig(Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> block L start Is end), Bs) [owise] .
 
     var Unif : Unification .
     var S : Stack .
@@ -87,15 +88,21 @@ mod LOGIC is
 
     var Counter : Nat .
 
+    op makeBlockStates : Block Unification Stack -> State .
+    eq makeBlockStates(nil, Unif, S) = nil .
+    eq makeBlockStates(block L start Is end Bs, Unif, S) =
+        state(Is, Unif, S)
+        makeBlockStates(Bs, Unif, S) .
+
     rl [goto]:
-        [ Counter, (L |-> Is) Blocks , state(goto, Unif, L S) States ]
+        [ Counter, (L |-> Bs) Blocks , state(goto, Unif, L S) States ]
         =>
-        [ Counter, (L |-> Is) Blocks , States state(Is, Unif, S) ] .
+        [ Counter, (L |-> Bs) Blocks , States makeBlockStates(Bs, Unif, S) ] .
 
     rl [branch]:
-        [ Counter, (L1 |-> I1) (L2 |-> I2) Blocks , state(branch, Unif, L1 L2 S) States ]
+        [ Counter, (L1 |-> Bs1) (L2 |-> Bs2) Blocks , state(branch, Unif, L1 L2 S) States ]
         =>
-        [ Counter, (L1 |-> I1) (L2 |-> I2) Blocks , States state(I1, Unif, S) state(I2, Unif, S) ] .
+        [ Counter, (L1 |-> Bs1) (L2 |-> Bs2) Blocks , States makeBlockStates(Bs1, Unif, S) makeBlockStates(Bs2, Unif, S) ] .
 
     rl [var]:
         [ Counter, Blocks, state(v(V) Is, Unif, S) States ]
@@ -493,8 +500,7 @@ mod LOGIC-MACRO is
     op facts : Stack -> Block .
     op factGen : Nat Stack -> Block .
 
-    eq facts(Fs) =
-        genGotos(factGen(0, Fs)) .
+    eq facts(Fs) = factGen(0, Fs) .
 
     vars B Bs : Block .
 
@@ -505,31 +511,6 @@ mod LOGIC-MACRO is
             Is
         end
         Bs) = X extractNames(Bs) .
-
-    op genBranches : Stack -> Block .
-    eq genBranches(nil) = nil .
-    eq genBranches(X) =
-        block qid("branchblock" + string(X)) start
-            lbl(X)
-            goto
-        end .
-    eq genBranches(X Y) =
-        block qid("branchblock" + string(X)) start
-            lbl(X)
-            lbl(Y)
-            branch
-        end .
-    ceq genBranches(X Y Vs) =
-        block qid("branchblock" + string(X)) start
-            lbl(X)
-            lbl(qid("branchblock" + string(Y)))
-            branch
-        end
-        genBranches(Y Vs)
-        if Vs =/= nil .
-
-    op genGotos : Block -> Block .
-    eq genGotos(Bs) = genBranches(extractNames(Bs)) Bs .
 
     eq factGen(N, nil) = nil .
     eq factGen(N, func(F, Args) Fs) =
@@ -559,43 +540,38 @@ mod LOGIC-MACRO is
         sequence GId start
             Gs
         end
-        if FId := qid(string(X) + "F") /\
-           GId := qid(string(X) + "G") .
+        if FId := qid(string(X) + "F0") /\
+           GId := qid(string(X) + "G0") .
 endm
 
 --- set trace on .
 --- set trace eq off .
 rew program(
---- query(
----     --- func('length, 10 'X)
----     func('range, 'X 0 10)
----     func('sum, 'Total 'X)
---- )
+query(
+    func('length, 10 'X)
+    --- func('range, 'X 0 10)
+    --- func('sum, 'Total 'X)
+)
 
-block 'main start
-    v('X)
-    int(10)
-    v('X)
-    lt
-    v('X)
-    int(0)
-    lt
-    v('X)
-    choose
-end
+--- block 'main start
+---     v('X)
+---     int(10)
+---     v('X)
+---     lt
+---     v('X)
+---     int(0)
+---     lt
+---     v('X)
+---     choose
+--- end
 
 facts(
     func('age, s("reed") 21)
     func('age, s("meg") 22)
 )
 
+--- Empty case
 block 'length start
-    lbl('lengthempty)
-    lbl('lengthcons)
-    branch
-end
-
-block 'lengthempty start
     int(0)
     unif
     functor('empty, 0)
@@ -603,13 +579,8 @@ block 'lengthempty start
     goto
 end
 
-block 'lengthcons start
-    lbl('lengthconsvar)
-    lbl('lengthconsground)
-    branch
-end
-
-block 'lengthconsvar start
+--- Var case
+block 'length start
     --- L Xs
     isvar
     swap
@@ -643,7 +614,8 @@ block 'lengthconsvarend start
     goto
 end
 
-block 'lengthconsground start
+--- Nonvar case
+block 'length start
     --- L Xs
     nonvar
     dup
@@ -679,13 +651,6 @@ end
 
 block 'between start
     --- X Low High
-    lbl('betweenvar)
-    lbl('betweennonvar)
-    branch
-end
-
-block 'betweenvar start
-    --- X Low High
     isvar
     lbl('betweenvarlow)
     lbl('betweenvarhigh)
@@ -710,7 +675,7 @@ block 'betweenvarhigh start
     goto
 end
 
-block 'betweennonvar start
+block 'between start
     --- X Low High
     nonvar
 
@@ -729,12 +694,6 @@ block 'betweennonvar start
 end
 
 block 'sum start
-    lbl('sumempty)
-    lbl('sumcons)
-    branch
-end
-
-block 'sumempty start
     --- Res X
     swap
     functor('empty, 0)
@@ -745,7 +704,7 @@ block 'sumempty start
     goto
 end
 
-block 'sumcons start
+block 'sum start
     --- Res Xs
     swap
     fresh
@@ -788,13 +747,6 @@ end
 
 block 'range start
     --- List Low High
-    lbl('rangezero)
-    lbl('rangenonzero)
-    branch
-end
-
-block 'rangezero start
-    --- List Low High
     rot
     --- Low High List
     swap
@@ -806,7 +758,7 @@ block 'rangezero start
     goto
 end
 
-block 'rangenonzero start
+block 'range start
     --- List Low High
     rot
     --- Low High List

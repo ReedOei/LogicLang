@@ -1,0 +1,77 @@
+fmod LOGIC-STACK is
+    protecting INT .
+    protecting QID .
+    protecting STRING .
+
+    sorts Stack Func Val .
+    subsort Int < Val .
+    subsort Qid < Val .
+    subsort Func < Val .
+    subsort Val < Stack .
+
+    op func : Qid Stack -> Func [ctor] .
+
+    op s : String -> Val [ctor] .
+
+    op nil : -> Stack [ctor] .
+    op __ : Stack Stack -> Stack [ctor assoc id: nil] .
+
+    vars N M Num : Nat .
+    vars Args Ws Vs S : Stack .
+    vars V W NewV NewW : Val .
+    vars X Y F G : Qid .
+    var Fun : Func .
+    var Str : String .
+
+    op take : Nat Stack -> Stack .
+    eq take(0, S) = nil .
+    eq take(Num, nil) = nil .
+    eq take(s(Num), V Vs) = V take(Num, Vs) .
+
+    op drop : Nat Stack -> Stack .
+    eq drop(0, S) = S .
+    eq drop(Num, nil) = nil .
+    eq drop(s(Num), V Vs) = drop(Num, Vs) .
+
+    op length : Stack -> Nat .
+    eq length(nil) = 0 .
+    eq length(V Vs) = 1 + length(Vs) .
+
+    op _in_ : Val Stack -> Bool .
+    eq V in nil = false .
+    eq V in (W Vs) = (V == W) or (V in Vs ) .
+
+    op notVar : Val -> Bool .
+    eq notVar(X) = false .
+    eq notVar(Fun) = true .
+    eq notVar(N) = true .
+    eq notVar(s(Str)) = true .
+
+    sort Computed .
+    op computed : Val -> Computed [ctor] .
+    op computed : Stack -> Computed [ctor] .
+    op insufficient : -> Computed [ctor] .
+
+    vars NewVs NewArgs : Stack .
+
+    op sub : Int Int -> Int .
+    --- For some reason it doesn't like N - M (says multiple possible parses)
+    eq sub(N, M) = (N + - M) .
+
+    op simplify : Val -> Computed .
+    ceq simplify(func(F, Args)) = computed(func(F, NewArgs))
+        if computed(NewArgs) := simplifyStack(Args) .
+    eq simplify(func('add, N M)) = computed(N + M) .
+    eq simplify(func('sub, N M)) = computed(sub(N, M)) .
+    eq simplify(V) = insufficient [owise] .
+
+    op simplifyStack : Stack -> Computed .
+    ceq simplifyStack(Vs V Ws) = computed(Vs V Ws)
+        if computed(NewV) := simplify(V) .
+    eq simplifyStack(Vs) = insufficient [owise] .
+
+    op buildRange : Int Int -> Stack .
+    ceq buildRange(N, M) = N buildRange(N + 1, M) if N <= M .
+    eq buildRange(N, M) = nil [owise] .
+endfm
+

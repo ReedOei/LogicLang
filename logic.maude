@@ -1,5 +1,4 @@
 mod LOGIC is
-    --- protecting NAT .
     protecting INT .
     protecting QID .
     protecting STRING .
@@ -11,7 +10,6 @@ mod LOGIC is
     ops fresh nonvar isvar unif dif : -> Instr [ctor] .
     ops swap pop rot dup : -> Instr [ctor] .
     ops lt lte add sub : -> Instr [ctor] .
-    op lookup : -> Instr [ctor] .
     op v : Qid -> Instr [ctor] .
     op str : String -> Instr [ctor] .
     op lbl : Qid -> Instr [ctor] .
@@ -141,40 +139,6 @@ mod LOGIC is
         [ Counter + 1, Blocks, States runUnif(Is, (X = func('add, V W)) Unif, X S) ]
         if X := qid(string(Counter, 10)) .
 
-    rl [lookupInt]:
-        [ Counter, Blocks, state(lookup Is, Unif, N S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, Unif, N S) ] .
-
-    rl [lookupFunc]:
-        [ Counter, Blocks, state(lookup Is, Unif, func(F, Args) S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, Unif, S func(F, Args)) ] .
-
-    rl [lookupStr]:
-        [ Counter, Blocks, state(lookup Is, Unif, s(Str) S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, Unif, S s(Str)) ] .
-
-    rl [lookupVarIsInt]:
-        [ Counter, Blocks, state(lookup Is, (X = N) Unif, X S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, (X = N) Unif, N S) ] .
-
-    rl [lookupVarIsFunc]:
-        [ Counter, Blocks, state(lookup Is, (X = func(F, Args)) Unif, X S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, (X = func(F, Args)) Unif, func(F, Args) S) ] .
-
-    rl [lookupVarIsStr]:
-        [ Counter, Blocks, state(lookup Is, (X = s(Str)) Unif, X S) States ]
-        =>
-        [ Counter, Blocks, States state(Is, (X = s(Str)) Unif, s(Str) S) ] .
-
-    rl [lookupIsVar]:
-        [ Counter, Blocks, state(lookup Is, (X = Y) Unif, X S) States ]
-        =>
-        [ Counter, Blocks, States ] .
 
     crl [sub]:
         [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
@@ -205,17 +169,24 @@ mod LOGIC is
     rl [isvar]:
         [ Counter, Blocks, state(isvar Is, Unif, V S) States ]
         =>
-        [ Counter, Blocks, States if not notVar(V) then state(Is, Unif, S) else nil fi ] .
+        [ Counter, Blocks, States if isVar(V, Unif) then state(Is, Unif, V S) else nil fi ] .
 
     rl [nonvar]:
         [ Counter, Blocks, state(nonvar Is, Unif, V S) States ]
         =>
-        [ Counter, Blocks, States if notVar(V) then state(Is, Unif, S) else nil fi ] .
+        [ Counter, Blocks, States if not isVar(V, Unif) then state(Is, Unif, V S) else nil fi ] .
 
     rl [call]:
         [ Counter, Blocks, state(call Is, Unif, func(F, Args) S) States ]
         =>
         [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
+
+    op isVar : Val Unification -> Bool .
+    eq isVar(N, Unif) = false .
+    eq isVar(func(F, Args), Unif) = false .
+    eq isVar(s(Str), Unif) = false .
+    eq isVar(X, (X = V) Unif) = isVar(V, Unif) .
+    eq isVar(X, Unif) = true [owise] .
 
     vars F G : Qid .
     vars Vs Args : Stack .
@@ -414,7 +385,9 @@ mod LOGIC-MACRO is
     var Str : String .
 
     var N : Nat .
-    vars F X L : Qid .
+    vars F X Y L : Qid .
+
+    vars I Is : Instr .
 
     op length : Stack -> Nat .
     eq length(nil) = 0 .
@@ -431,28 +404,69 @@ mod LOGIC-MACRO is
     op doCall : Qid Func -> Instr .
     eq doCall(L, func(F, Args)) =
         lbl(L)
-        toInstr(func(F, Args))
-        call .
+        toInstr(Args)
+        lbl(F)
+        goto .
 
     var Fun : Func .
+    var Fs : Stack .
 
-    op query : Stack Func -> Block .
-    eq query(Vs, Fun) =
+    op sequence_start_end : Qid Stack -> Block .
+    eq sequence X start Vs end = makeSeq(0, X, Vs) .
+
+    op makeSeq : Nat Qid Stack -> Block .
+    eq makeSeq(N, X, nil) = block qid(string(X) + string(N, 10)) start nil end .
+    eq makeSeq(N, X, Fun Fs) =
+        block qid(string(X) + string(N, 10)) start
+            doCall(qid(string(X) + string(N + 1, 10)), Fun)
+        end
+        makeSeq(N + 1, X, Fs) .
+
+    op query : Stack -> Block .
+    eq query(Fs) =
         block 'main start
-            toInstr(Vs)
-            doCall('end, Fun)
+            toInstr(varsOf(Fs))
+            lbl('mainSeq0)
+            goto
         end
-        block 'end start
-            nil
-        end
-        .
+
+        sequence 'mainSeq start
+            Fs
+        end .
 
     op facts : Stack -> Block .
     op factGen : Nat Stack -> Block .
 
-    var Fs : Stack .
+    eq facts(Fs) =
+        genGotos(factGen(0, Fs)) .
 
-    eq facts(Fs) = factGen(0, Fs) .
+    vars B Bs : Block .
+
+    op extractNames : Block -> Stack .
+    eq extractNames(nil) = nil .
+    eq extractNames(
+        block X start
+            Is
+        end
+        Bs) = X extractNames(Bs) .
+
+    op genBranches : Stack -> Block .
+    eq genBranches(nil) = nil .
+    eq genBranches(X) =
+        block qid("branchblock" + string(X)) start
+            lbl(X)
+            goto
+        end .
+    eq genBranches(X Y Vs) =
+        block qid("branchblock" + string(X)) start
+            lbl(X)
+            lbl(qid("branchblock" + string(Y)))
+            branch
+        end
+        genBranches(Y Vs) .
+
+    op genGotos : Block -> Block .
+    eq genGotos(Bs) = genBranches(extractNames(Bs)) Bs .
 
     eq factGen(N, nil) = nil .
     eq factGen(N, func(F, Args) Fs) =
@@ -460,19 +474,45 @@ mod LOGIC-MACRO is
             genUnif(Args)
             goto
         end
-        factGen(N, Fs) .
+        factGen(N + 1, Fs) .
 
     op genUnif : Stack -> Instr .
     eq genUnif(nil) = nil .
     eq genUnif(V Vs) = toInstr(V) unif genUnif(Vs) .
+
+    var Gs : Stack .
+    vars FId GId : Qid .
+
+    op start_either_or_end : Qid Stack Stack -> Block .
+    ceq start X either Fs or Gs end =
+        block qid(string(X) + "branch") start
+            lbl(FId)
+            lbl(GId)
+            branch
+        end
+        sequence FId start
+            Fs
+        end
+        sequence GId start
+            Gs
+        end
+        if FId := qid(string(X) + "F") /\
+           GId := qid(string(X) + "G") .
 endm
 
 --- set trace on .
---- red performUnif(('1 = func('empty, nil)) ('2 = 1) ('X = func('cons, 0 func('empty, nil))) lt(10, '2)) .
+--- set trace eq off .
 rew program(
-query('X 'Total, func('range, 'X 0 10))
+query(
+    --- func('length, 10 'X)
+    func('range, 'X 0 10)
+    func('sum, 'Total 'X)
+)
 
-facts(func('age, s("reed") 21))
+--- facts(
+---     func('age, s("reed") 21)
+---     func('age, s("meg") 22)
+--- )
 
 block 'length start
     lbl('lengthempty)
@@ -496,7 +536,6 @@ end
 
 block 'lengthconsvar start
     --- L Xs
-    dup
     isvar
     swap
     --- Xs L
@@ -530,24 +569,35 @@ block 'lengthconsvarend start
 end
 
 block 'lengthconsground start
-    dup
+    --- L Xs
     nonvar
     dup
     int(0)
     lt
+    --- L Xs
     int(1)
+    --- 1 L Xs
     swap
+    --- L 1 Xs
     sub
 
     swap
+    --- Xs L1
     fresh
+    --- T Xs L1
     dup
+    --- T T Xs L1
     rot
+    --- T Xs T L1
     fresh
+    --- H T Xs T L1
     functor('cons, 2)
+    --- cons(H, T) Xs T L1
     unif
+    --- T L1
 
     swap
+    --- L1 T
     lbl('length)
     goto
 end
@@ -561,7 +611,6 @@ end
 
 block 'betweenvar start
     --- X Low High
-    dup
     isvar
     lbl('betweenvarlow)
     lbl('betweenvarhigh)
@@ -588,7 +637,6 @@ end
 
 block 'betweennonvar start
     --- X Low High
-    dup
     nonvar
 
     dup

@@ -1,0 +1,473 @@
+load generator
+
+mod LOGIC-CORE is
+    protecting CONVERSION .
+
+    protecting LOGIC-STACK .
+    protecting DOMAIN .
+    protecting GENERATOR .
+
+    sorts Instr Block .
+
+    ops call branch goto fail : -> Instr [ctor] .
+    ops fresh nonvar isvar unif dif : -> Instr [ctor] .
+    ops swap pop rot dup : -> Instr [ctor] .
+    ops lt lte add sub mul mod : -> Instr [ctor] .
+    op choose : -> Instr [ctor] .
+    op chooseDeps : VarList -> Instr [ctor] .
+    op v : Qid -> Instr [ctor] .
+    op str : String -> Instr [ctor] .
+    op lbl : Qid -> Instr [ctor] .
+    op int : Int -> Instr [ctor] .
+    op nth : Int -> Instr [ctor] .
+    op functor : Qid Nat -> Instr [ctor] .
+
+    op nil : -> Instr [ctor] .
+    op __ : Instr Instr -> Instr [ctor assoc id: nil] .
+
+    op block_start_end : Qid Instr -> Block [ctor] .
+    op nil : -> Block [ctor] .
+    op __ : Block Block -> Block [ctor assoc id: nil] .
+
+    sorts BlockMap Configuration .
+    op mt : -> BlockMap [ctor] .
+    op _|->_ : Qid Block -> BlockMap [ctor] .
+    op __ : BlockMap BlockMap -> BlockMap [ctor comm assoc id: mt] .
+    op [_,_,_] : Nat BlockMap State -> Configuration [ctor] .
+
+    vars B1 B2 : Block .
+
+    eq (L |-> B1) (L |-> B2) = L |-> B1 B2 .
+
+    sort Unification .
+    op mt : -> Unification [ctor] .
+    op __ : Unification Unification -> Unification [ctor comm assoc id: mt] .
+
+    sort UnificationItem .
+    subsort UnificationItem < Unification .
+    op _=_ : Val Val -> UnificationItem [ctor comm] .
+    op _/=_ : Val Val -> UnificationItem [ctor comm] .
+    op lt : Val Val -> UnificationItem [ctor] .
+    op lte : Val Val -> UnificationItem [ctor] .
+    op failure : -> UnificationItem [ctor] .
+
+    var UIt : UnificationItem .
+
+    sort State .
+    op nil : -> State [ctor] .
+    op state : Instr Unification Stack -> State [ctor] .
+    op runGenerator : Qid Generator Instr Unification Stack -> State [ctor] .
+    op runUnif : Instr Unification Stack -> State [ctor] .
+    op __ : State State -> State [ctor assoc id: nil] .
+
+    var B Bs Bs1 Bs2 : Block .
+    var BM1 BM2 Blocks : BlockMap .
+    vars L L1 L2 X Y Z : Qid .
+    var I I1 I2 Is : Instr .
+
+    var Str Str1 Str2 : String .
+
+    op program : Block -> Configuration .
+    eq program(B) = buildConfig(mt, B) .
+
+    op buildConfig : BlockMap Block -> Configuration .
+    eq buildConfig(Blocks, nil) = [0, Blocks, state(lbl('main) goto, mt, nil)] .
+    eq buildConfig(Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> block L start Is end), Bs) .
+
+    var Unif : Unification .
+    var S : Stack .
+
+    var V W : Val .
+
+    var States : State .
+
+    var Counter : Nat .
+
+    op makeBlockStates : Block Unification Stack -> State .
+    eq makeBlockStates(nil, Unif, S) = nil .
+    eq makeBlockStates(block L start Is end Bs, Unif, S) =
+        state(Is, Unif, S)
+        makeBlockStates(Bs, Unif, S) .
+
+    vars Gen NewGen Gens : Generator .
+    crl [generateNew]:
+        [ Counter, Blocks, runGenerator(X, Gen, Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, runUnif(Is, (X = N) Unif, S) States runGenerator(X, NewGen, Is, Unif, S) ]
+        if < NewGen ; N > := next(Gen) .
+
+    crl [generateDone]:
+        [ Counter, Blocks, runGenerator(X, Gen, Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States ]
+        if done(Gen) .
+
+    rl [goto]:
+        [ Counter, (L |-> Bs) Blocks , state(goto, Unif, L S) States ]
+        =>
+        [ Counter, (L |-> Bs) Blocks , States makeBlockStates(Bs, Unif, S) ] .
+
+    rl [branch]:
+        [ Counter, (L1 |-> Bs1) (L2 |-> Bs2) Blocks , state(branch, Unif, L1 L2 S) States ]
+        =>
+        [ Counter, (L1 |-> Bs1) (L2 |-> Bs2) Blocks , States makeBlockStates(Bs1, Unif, S) makeBlockStates(Bs2, Unif, S) ] .
+
+    rl [var]:
+        [ Counter, Blocks, state(v(V) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, V S) ] .
+
+    rl [lbl]:
+        [ Counter, Blocks , state(lbl(L) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks , States state(Is, Unif, L S) ] .
+
+    rl [dup]:
+        [ Counter, Blocks, state(dup Is, Unif, V S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, V V S) ] .
+
+    rl [rot]:
+        [ Counter, Blocks, state(rot Is, Unif, V W T S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, W T V S) ] .
+
+    rl [pop]:
+        [ Counter, Blocks, state(pop Is, Unif, V S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, S) ] .
+
+    rl [swap]:
+        [ Counter, Blocks, state(swap Is, Unif, V W S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, W V S) ] .
+
+    vars N M : Int .
+    rl [int]:
+        [ Counter, Blocks, state(int(N) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, N S) ] .
+
+    rl [nth]:
+        [ Counter, Blocks, state(nth(N) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, moveNth(S, N)) ] .
+
+    rl [string]:
+        [ Counter, Blocks, state(str(Str) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, s(Str) S) ] .
+
+    crl [add]:
+        [ Counter, Blocks, state(add Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('add, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    crl [sub]:
+        [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('sub, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    crl [mul]:
+        [ Counter, Blocks, state(mul Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('mul, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    crl [mod]:
+        [ Counter, Blocks, state(mod Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('mod, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    rl [lt]:
+        [ Counter, Blocks, state(lt Is, Unif, V W S) States ]
+        =>
+        [ Counter, Blocks, States runUnif(Is, lt(V, W) Unif, S) ] .
+
+    rl [lte]:
+        [ Counter, Blocks, state(lte Is, Unif, V W S) States ]
+        =>
+        [ Counter, Blocks, States runUnif(Is, lte(V, W) Unif, S) ] .
+
+    rl [fresh]:
+        [ Counter, Blocks, state(fresh Is, Unif, S) States ]
+        =>
+        [ Counter + 1, Blocks, States state(Is, Unif, qid(string(Counter, 10)) S) ] .
+
+    rl [fail]:
+        [ Counter, Blocks, state(fail Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States ] .
+
+    rl [isvar]:
+        [ Counter, Blocks, state(isvar Is, Unif, V S) States ]
+        =>
+        [ Counter, Blocks, States if isVar(V, Unif) then state(Is, Unif, V S) else nil fi ] .
+
+    rl [nonvar]:
+        [ Counter, Blocks, state(nonvar Is, Unif, V S) States ]
+        =>
+        [ Counter, Blocks, States if not isVar(V, Unif) then state(Is, Unif, V S) else nil fi ] .
+
+    rl [call]:
+        [ Counter, Blocks, state(call Is, Unif, func(F, Args) S) States ]
+        =>
+        [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
+
+    rl [chooseDepsDone]:
+        [ Counter, Blocks, state(chooseDeps(none) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, state(Is, Unif, S) States ] .
+
+    rl [chooseDepsGen]:
+        [ Counter, Blocks, state(chooseDeps(X ; Vars) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, runGenerator(X, makeGenerator(unifToDom(X, Unif)), chooseDeps(Vars) Is, Unif, S) States ] .
+
+    var Deps : VarList .
+    crl [choose]:
+        [ Counter, Blocks, state(choose Is, Unif, X S) States ]
+        =>
+        [ Counter, Blocks, States state(chooseDeps(Deps) Is, Unif, S) ]
+        if Deps := dependencies(X, Unif) .
+
+    sort VarList .
+    subsort Qid < VarList .
+    vars Vars Vars1 Vars2 Vars3 : VarList .
+
+    op none : -> VarList [ctor] .
+    op _;_ : VarList VarList -> VarList [ctor assoc id: none] .
+    eq Vars1 ; X ; Vars2 ; X ; Vars3 = Vars1 ; X ; Vars2 ; Vars3 .
+
+    op contains : VarList Qid -> Bool .
+    eq contains(Vars1 ; X ; Vars2, X) = true .
+    eq contains(Vars, X) = false [owise] .
+
+    op insertChoose : VarList -> Instr .
+    eq insertChoose(none) = nil .
+    eq insertChoose(X) = v(X) choose .
+    eq insertChoose(X ; Vars) = v(X) choose insertChoose(Vars) .
+
+    op dependencies : Stack Unification -> VarList .
+    eq dependencies(Vs, Unif) = findDeps(none, Vs, Unif) .
+
+    op findDeps : VarList Stack Unification -> VarList .
+    eq findDeps(Vars, nil, Unif) = Vars .
+
+    eq findDeps(Vars, N Vs, Unif) = findDeps(Vars, Vs, Unif) .
+    eq findDeps(Vars, s(Str) Vs, Unif) = findDeps(Vars, Vs, Unif) .
+    eq findDeps(Vars, func(F, Args) Vs, Unif) = findDeps(Vars, Vs Args, Unif) .
+    ceq findDeps(Vars, X Vs, Unif) = findDeps(Vars, Vs, Unif) if contains(Vars, X) .
+    eq findDeps(Vars, X Vs, (X = T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, (X /= T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lt(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lte(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lt(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lte(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, (func(F, Args) = func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (func(F, Args) /= func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lt(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lte(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lt(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lte(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+
+    eq findDeps(Vars, X Vs, Unif) = findDeps(X ; Vars, Vs, Unif) [owise] .
+
+    op isVar : Val Unification -> Bool .
+    eq isVar(N, Unif) = false .
+    eq isVar(func(F, Args), Unif) = false .
+    eq isVar(s(Str), Unif) = false .
+    eq isVar(X, (X = V) Unif) = isVar(V, Unif) .
+    eq isVar(X, Unif) = true [owise] .
+
+    vars F G : Qid .
+    vars Vs Args : Stack .
+
+    op varsOf : Unification -> VarList .
+    op varsOf : Val -> VarList .
+    op varsOf : Stack -> VarList .
+    eq varsOf(X) = X .
+    eq varsOf(N) = none .
+    eq varsOf(s(Str)) = none .
+    eq varsOf(func(F, Args)) = varsOf(Args) .
+    eq varsOf(nil) = none .
+    eq varsOf(V Vs) = varsOf(V) ; varsOf(Vs) .
+    eq varsOf(mt) = none .
+    eq varsOf((V = W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf((V /= W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf(lt(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf(lte(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+
+    var Fun : Func .
+    vars ArgsG ArgsF Ws : Stack .
+    var T : Val .
+
+    eq s(Str1) = s(Str2) = if Str1 == Str2 then mt else failure fi .
+    eq N = s(Str) = failure .
+    eq N /= s(Str) = mt .
+    eq N = M = if N == M then mt else failure fi .
+    eq N /= M = if N =/= M then mt else failure fi .
+    eq lt(N, M) = if N < M then mt else failure fi .
+    eq lte(N, M) = if N <= M  then mt else failure fi .
+    eq failure UIt Unif = failure .
+
+    op unifPossible : Unification -> Bool .
+    eq unifPossible(mt) = true .
+    eq unifPossible(failure Unif) = false .
+    eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
+    eq unifPossible((X = T) Unif) = not contains(varsOf(T), X) and unifPossible(Unif) .
+    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = contains(arithOps, F) and contains(arithOps, G) and unifPossible(Unif) .
+    eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
+
+    op makeEqualities : Stack Stack -> Unification .
+    eq makeEqualities(nil, nil) = mt .
+    eq makeEqualities(V Vs, W Ws) = (V = W) makeEqualities(Vs, Ws) .
+
+    op substitute : Qid Val Unification -> Unification .
+    op substitute : Qid Val Stack -> Stack .
+    op substitute : Qid Val Val -> Val .
+    eq substitute(X, W, mt) = mt .
+    eq substitute(X, W, V = T) = (substitute(X, W, V) = substitute(X, W, T)) .
+    eq substitute(X, W, lt(V, T)) = lt(substitute(X, W, V), substitute(X, W, T)) .
+    eq substitute(X, W, lte(V, T)) = lte(substitute(X, W, V), substitute(X, W, T)) .
+    eq substitute(X, W, V /= T) = (substitute(X, W, V) /= substitute(X, W, T)) .
+    eq substitute(X, W, UIt Unif) = substitute(X, W, UIt) substitute(X, W, Unif) .
+    eq substitute(X, W, Y) = if X == Y then W else Y fi .
+    eq substitute(X, W, N) = N .
+    eq substitute(X, W, s(Str)) = s(Str) .
+    eq substitute(X, W, func(F, Args)) = func(F, substitute(X, W, Args)) .
+    eq substitute(X, W, nil) = nil .
+    eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
+
+    op arithOps : -> VarList .
+    eq arithOps = 'add ; 'mul ; 'sub ; 'mod .
+
+    op performUnif : Unification -> Unification .
+    eq performUnif((V = V) Unif) = performUnif(Unif) .
+    ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
+        if not contains(varsOf(T), X) and notVar(T) and contains(varsOf(Unif), X) .
+    ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
+        if X =/= Y and contains(varsOf(Unif), X) and contains(varsOf(Unif), Y) .
+
+    --- We can only do this for non-builtin operations (because X + Y = A + B doesn't mean X = A and Y = B)
+    ceq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif)
+        if not contains(arithOps, F) .
+
+    vars NewV NewW : Val .
+    ceq performUnif((V = W) Unif) = performUnif((NewV = W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif((V /= W) Unif) = performUnif((NewV /= W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lt(V, W) Unif) = performUnif(lt(NewV, W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lt(V, W) Unif) = performUnif(lt(V, NewW) Unif)
+        if computed(NewW) := simplify(W) .
+    ceq performUnif(lte(V, W) Unif) = performUnif(lte(NewV, W) Unif)
+        if computed(NewV) := simplify(V) .
+    ceq performUnif(lte(V, W) Unif) = performUnif(lte(V, NewW) Unif)
+        if computed(NewW) := simplify(W) .
+
+    --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
+    ceq performUnif(Unif) = performUnif((X = V) Unif)
+        if (Vs X Ws) := varsOf(Unif) /\
+           not (inEquation(X, Unif)) /\
+           computed(V) := domToVals(unifToDom(X, Unif)) .
+
+    ceq performUnif(Unif) = failure
+        if (Vs X Ws) := varsOf(Unif) /\
+           computed(nil) := domToVals(unifToDom(X, Unif)) .
+
+    eq performUnif(Unif) = Unif [owise] .
+
+    op inEquation : Qid Unification -> Bool .
+    eq inEquation(X, (X = V) Unif) = true .
+    eq inEquation(X, Unif) = false [owise] .
+
+    op unifToDom : Qid Unification -> Domain .
+    eq unifToDom(X, mt) = universal .
+    eq unifToDom(X, lt(X, M) Unif) = intersect(range(negInf, sub(M, 1)), unifToDom(X, Unif)) .
+    eq unifToDom(X, lte(X, M) Unif) = intersect(range(negInf, M), unifToDom(X, Unif)) .
+    eq unifToDom(X, lt(N, X) Unif) = intersect(range(N + 1, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, lte(N, X) Unif) = intersect(range(N, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, (X = N) Unif) = range(N, N) .
+    eq unifToDom(X, (X /= N) Unif) = intersect(range(negInf, sub(N, 1)) U range(N + 1, posInf), unifToDom(X, Unif)) .
+    ceq unifToDom(X, (V = W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, (V /= W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, lt(V, W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+    ceq unifToDom(X, lte(V, W) Unif) = unifToDom(X, Unif)
+        if V =/= X and W =/= X .
+
+    vars Dom1 Dom2 Dom : Domain .
+
+    --- Will yield computed(Vs) if the domain is finite
+    op domToVals : Domain -> Computed .
+    eq domToVals(empty) = computed(nil) .
+    eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
+    ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
+        if computed(Vs) := domToVals(Dom1) /\
+           computed(Ws) := domToVals(Dom2) .
+    eq domToVals(Dom) = insufficient [owise] .
+
+    var NewUnif : Unification .
+    rl [unif]:
+        [ Counter, Blocks, state(unif Is, Unif, V W S) States ]
+        =>
+        [ Counter, Blocks, States runUnif(Is, (V = W) Unif, S) ] .
+
+    rl [dif]:
+        [ Counter, Blocks, state(dif Is, Unif, V W S) States ]
+        =>
+        [ Counter, Blocks, States runUnif(Is, (V /= W) Unif, S) ] .
+
+    crl [runUnif]:
+        [ Counter, Blocks, runUnif(Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States if unifPossible(NewUnif) then state(Is, NewUnif, S) else nil fi ]
+        if NewUnif := performUnif(Unif) .
+
+    rl [functor]:
+        [ Counter, Blocks, state(functor(X, N) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, func(X, take(N, S)) drop(N, S)) ] .
+
+    --- Stop on the first solution found .
+    subsort State < Configuration .
+    rl [stop]:
+        [ Counter, Blocks, state(nil, Unif, S) States ]
+        =>
+        state(nil, Unif, S) States .
+
+    op reachable : Qid Unification Stack -> Bool .
+    ceq reachable(X, Unif, Vs Y Ws) = true if reachableFrom(X, Y, Unif) .
+    ceq reachable(X, Unif, Vs func(F, Args) Ws) = true
+        if reachable(X, Unif, Args) .
+    eq reachable(X, Unif, S) = false [owise] .
+
+    op reachableFrom : Qid Qid Unification -> Bool .
+    ceq reachableFrom(X, Y, (Y = V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, (Y /= V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lt(Y, V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lt(V, Y) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lte(Y, V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, lte(V, Y) Unif) = true if reachable(X, Unif, V) .
+    eq reachableFrom(X, X, Unif) = true .
+    eq reachableFrom(X, Y, Unif) = false [owise] .
+
+    crl [garbageCollectMid]:
+        [ Counter, Blocks, state(Is, (X = V) Unif, S) States ]
+        =>
+        [ Counter, Blocks, state(Is, Unif, S) States ]
+        if not reachable(X, Unif, S) .
+
+    crl [garbageCollectEnd]:
+        state(Is, (X = V) Unif, S)
+        =>
+        state(Is, Unif, S)
+        if not reachable(X, Unif, S) .
+endm

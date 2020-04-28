@@ -216,10 +216,37 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
 
-    rl [choose]:
+    crl [chooseNoDeps]:
         [ Counter, Blocks, state(choose Is, Unif, X S) States ]
         =>
-        [ Counter, Blocks, States runGenerator(X, makeGenerator(unifToDom(X, Unif)), Is, Unif, S) ] .
+        [ Counter, Blocks, States runGenerator(X, makeGenerator(unifToDom(X, Unif)), Is, Unif, S) ]
+        if dependencies(X, Unif) == X .
+
+    var Deps : Stack .
+    crl [chooseDeps]:
+        [ Counter, Blocks, state(choose Is, Unif, X S) States ]
+        =>
+        [ Counter, Blocks, States state(insertChoose(reverse(Deps)) Is, Unif, S) ]
+        if Deps := dependencies(X, Unif) .
+
+    op insertChoose : Stack -> Instr .
+    eq insertChoose(nil) = nil .
+    eq insertChoose(X Vs) = v(X) choose insertChoose(Vs) .
+
+    op dependencies : Stack Unification -> Stack .
+    eq dependencies(nil, Unif) = nil .
+
+    eq dependencies(N Vs, Unif) = dependencies(Vs, Unif) .
+    eq dependencies(s(Str) Vs, Unif) = dependencies(Vs, Unif) .
+    eq dependencies(func(F, Args) Vs, Unif) = dependencies(Vs Args, Unif) .
+    eq dependencies(X Vs, (X = T) Unif) = dependencies(X T Vs, Unif) .
+    eq dependencies(X Vs, (X /= T) Unif) = dependencies(X T Vs, Unif) .
+    eq dependencies(X Vs, lt(X, T) Unif) = dependencies(X T Vs, Unif) .
+    eq dependencies(X Vs, lte(X, T) Unif) = dependencies(X T Vs, Unif) .
+    eq dependencies(X Vs, lt(T, X) Unif) = dependencies(X T Vs, Unif) .
+    eq dependencies(X Vs, lte(T, X) Unif) = dependencies(X T Vs, Unif) .
+
+    eq dependencies(X Vs, Unif) = X dependencies(Vs, Unif) [owise] .
 
     op isVar : Val Unification -> Bool .
     eq isVar(N, Unif) = false .
@@ -769,6 +796,20 @@ mod LOGIC-MACRO is
             choose
             goto
         end
+
+        block 'even start
+            --- N
+            fresh
+            --- K
+            dup
+            rot
+            int(2)
+            mul
+            --- 2K N K
+            unif
+            lbl('nat)
+            goto
+        end
         .
 endm
 
@@ -784,8 +825,11 @@ query(
     --- func('nat, 'Len)
     --- func('choose, 'Len)
 
-    func('length, 'Len 'X)
-    func('range, 'X 0 10)
+    func('even, 'N)
+    func('choose, 'N)
+
+    --- func('length, 'Len 'X)
+    --- func('range, 'X 0 10)
     --- func('sum, 'Total 'X)
 )
 

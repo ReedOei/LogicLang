@@ -33,11 +33,9 @@ mod LOGIC-CORE is
     op mt : -> BlockMap [ctor] .
     op _|->_ : Qid Block -> BlockMap [ctor] .
     op __ : BlockMap BlockMap -> BlockMap [ctor comm assoc id: mt] .
-    op [_,_,_] : Nat BlockMap State -> Configuration [ctor] .
+    eq (L |-> B1) (L |-> B2) = L |-> B1 B2 .
 
     vars B1 B2 : Block .
-
-    eq (L |-> B1) (L |-> B2) = L |-> B1 B2 .
 
     sort Unification .
     op mt : -> Unification [ctor] .
@@ -45,12 +43,12 @@ mod LOGIC-CORE is
 
     sort UnificationItem .
     subsort UnificationItem < Unification .
+    op constraint : Qid Val Val -> UnificationItem [ctor] .
     op _=_ : Val Val -> UnificationItem [ctor comm] .
     op _/=_ : Val Val -> UnificationItem [ctor comm] .
-    op lt : Val Val -> UnificationItem [ctor] .
-    op lte : Val Val -> UnificationItem [ctor] .
     op failure : -> UnificationItem [ctor] .
 
+    var Unif : Unification .
     var UIt : UnificationItem .
 
     sort State .
@@ -67,6 +65,8 @@ mod LOGIC-CORE is
 
     var Str Str1 Str2 : String .
 
+    op [_,_,_] : Nat BlockMap State -> Configuration [ctor] .
+
     op program : Block -> Configuration .
     eq program(B) = buildConfig(mt, B) .
 
@@ -74,7 +74,6 @@ mod LOGIC-CORE is
     eq buildConfig(Blocks, nil) = [0, Blocks, state(lbl('main) goto, mt, nil)] .
     eq buildConfig(Blocks, block L start Is end Bs) = buildConfig(Blocks (L |-> block L start Is end), Bs) .
 
-    var Unif : Unification .
     var S : Stack .
 
     var V W : Val .
@@ -185,12 +184,12 @@ mod LOGIC-CORE is
     rl [lt]:
         [ Counter, Blocks, state(lt Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States runUnif(state(Is, lt(V, W) Unif, S)) ] .
+        [ Counter, Blocks, States runUnif(state(Is, constraint('lt, V, W) Unif, S)) ] .
 
     rl [lte]:
         [ Counter, Blocks, state(lte Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States runUnif(state(Is, lte(V, W) Unif, S)) ] .
+        [ Counter, Blocks, States runUnif(state(Is, constraint('lte, V, W) Unif, S)) ] .
 
     rl [fresh]:
         [ Counter, Blocks, state(fresh Is, Unif, S) States ]
@@ -254,6 +253,8 @@ mod LOGIC-CORE is
     op dependencies : Stack Unification -> VarList .
     eq dependencies(Vs, Unif) = findDeps(none, Vs, Unif) .
 
+    var Op : Qid .
+
     op findDeps : VarList Stack Unification -> VarList .
     eq findDeps(Vars, nil, Unif) = Vars .
 
@@ -263,16 +264,12 @@ mod LOGIC-CORE is
     ceq findDeps(Vars, X Vs, Unif) = findDeps(Vars, Vs, Unif) if contains(Vars, X) .
     eq findDeps(Vars, X Vs, (X = T) Unif) = findDeps(Vars, X Vs T, Unif) .
     eq findDeps(Vars, X Vs, (X /= T) Unif) = findDeps(Vars, X Vs T, Unif) .
-    eq findDeps(Vars, X Vs, lt(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
-    eq findDeps(Vars, X Vs, lte(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
-    eq findDeps(Vars, X Vs, lt(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
-    eq findDeps(Vars, X Vs, lte(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, constraint(Op, X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, constraint(Op, T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
     eq findDeps(Vars, X Vs, (func(F, Args) = func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
     eq findDeps(Vars, X Vs, (func(F, Args) /= func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
-    eq findDeps(Vars, X Vs, (lt(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
-    eq findDeps(Vars, X Vs, (lte(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
-    eq findDeps(Vars, X Vs, (lt(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
-    eq findDeps(Vars, X Vs, (lte(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, constraint(Op, func(F, Args), func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, constraint(Op, func(F, ArgsF X ArgsG), func(G, Args)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
 
     eq findDeps(Vars, X Vs, Unif) = findDeps(X ; Vars, Vs, Unif) [owise] .
 
@@ -298,8 +295,7 @@ mod LOGIC-CORE is
     eq varsOf(mt) = none .
     eq varsOf((V = W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
     eq varsOf((V /= W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
-    eq varsOf(lt(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
-    eq varsOf(lte(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf(constraint(Op, V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
 
     var Fun : Func .
     vars ArgsG ArgsF Ws : Stack .
@@ -310,8 +306,8 @@ mod LOGIC-CORE is
     eq N /= s(Str) = mt .
     eq N = M = if N == M then mt else failure fi .
     eq N /= M = if N =/= M then mt else failure fi .
-    eq lt(N, M) = if N < M then mt else failure fi .
-    eq lte(N, M) = if N <= M  then mt else failure fi .
+    eq constraint('lt, N, M) = if N < M then mt else failure fi .
+    eq constraint('lte, N, M) = if N <= M  then mt else failure fi .
     eq failure UIt Unif = failure .
 
     op unifPossible : Unification -> Bool .
@@ -331,8 +327,7 @@ mod LOGIC-CORE is
     op substitute : Qid Val Val -> Val .
     eq substitute(X, W, mt) = mt .
     eq substitute(X, W, V = T) = (substitute(X, W, V) = substitute(X, W, T)) .
-    eq substitute(X, W, lt(V, T)) = lt(substitute(X, W, V), substitute(X, W, T)) .
-    eq substitute(X, W, lte(V, T)) = lte(substitute(X, W, V), substitute(X, W, T)) .
+    eq substitute(X, W, constraint(Op, V, T)) = constraint(Op, substitute(X, W, V), substitute(X, W, T)) .
     eq substitute(X, W, V /= T) = (substitute(X, W, V) /= substitute(X, W, T)) .
     eq substitute(X, W, UIt Unif) = substitute(X, W, UIt) substitute(X, W, Unif) .
     eq substitute(X, W, Y) = if X == Y then W else Y fi .
@@ -361,13 +356,9 @@ mod LOGIC-CORE is
         if computed(NewV) := simplify(V) .
     ceq performUnif((V /= W) Unif) = performUnif((NewV /= W) Unif)
         if computed(NewV) := simplify(V) .
-    ceq performUnif(lt(V, W) Unif) = performUnif(lt(NewV, W) Unif)
+    ceq performUnif(constraint(Op, V, W) Unif) = performUnif(constraint(Op, NewV, W) Unif)
         if computed(NewV) := simplify(V) .
-    ceq performUnif(lt(V, W) Unif) = performUnif(lt(V, NewW) Unif)
-        if computed(NewW) := simplify(W) .
-    ceq performUnif(lte(V, W) Unif) = performUnif(lte(NewV, W) Unif)
-        if computed(NewV) := simplify(V) .
-    ceq performUnif(lte(V, W) Unif) = performUnif(lte(V, NewW) Unif)
+    ceq performUnif(constraint(Op, V, W) Unif) = performUnif(constraint(Op, V, NewW) Unif)
         if computed(NewW) := simplify(W) .
 
     --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
@@ -388,20 +379,13 @@ mod LOGIC-CORE is
 
     op unifToDom : Qid Unification -> Domain .
     eq unifToDom(X, mt) = universal .
-    eq unifToDom(X, lt(X, M) Unif) = intersect(range(negInf, sub(M, 1)), unifToDom(X, Unif)) .
-    eq unifToDom(X, lte(X, M) Unif) = intersect(range(negInf, M), unifToDom(X, Unif)) .
-    eq unifToDom(X, lt(N, X) Unif) = intersect(range(N + 1, posInf), unifToDom(X, Unif)) .
-    eq unifToDom(X, lte(N, X) Unif) = intersect(range(N, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, constraint('lt, X, M) Unif) = intersect(range(negInf, sub(M, 1)), unifToDom(X, Unif)) .
+    eq unifToDom(X, constraint('lte, X, M) Unif) = intersect(range(negInf, M), unifToDom(X, Unif)) .
+    eq unifToDom(X, constraint('lt, N, X) Unif) = intersect(range(N + 1, posInf), unifToDom(X, Unif)) .
+    eq unifToDom(X, constraint('lte, N, X) Unif) = intersect(range(N, posInf), unifToDom(X, Unif)) .
     eq unifToDom(X, (X = N) Unif) = range(N, N) .
     eq unifToDom(X, (X /= N) Unif) = intersect(range(negInf, sub(N, 1)) U range(N + 1, posInf), unifToDom(X, Unif)) .
-    ceq unifToDom(X, (V = W) Unif) = unifToDom(X, Unif)
-        if V =/= X and W =/= X .
-    ceq unifToDom(X, (V /= W) Unif) = unifToDom(X, Unif)
-        if V =/= X and W =/= X .
-    ceq unifToDom(X, lt(V, W) Unif) = unifToDom(X, Unif)
-        if V =/= X and W =/= X .
-    ceq unifToDom(X, lte(V, W) Unif) = unifToDom(X, Unif)
-        if V =/= X and W =/= X .
+    eq unifToDom(X, UIt Unif) = unifToDom(X, Unif) [owise] .
 
     vars Dom1 Dom2 Dom : Domain .
 
@@ -452,10 +436,8 @@ mod LOGIC-CORE is
     op reachableFrom : Qid Qid Unification -> Bool .
     ceq reachableFrom(X, Y, (Y = V) Unif) = true if reachable(X, Unif, V) .
     ceq reachableFrom(X, Y, (Y /= V) Unif) = true if reachable(X, Unif, V) .
-    ceq reachableFrom(X, Y, lt(Y, V) Unif) = true if reachable(X, Unif, V) .
-    ceq reachableFrom(X, Y, lt(V, Y) Unif) = true if reachable(X, Unif, V) .
-    ceq reachableFrom(X, Y, lte(Y, V) Unif) = true if reachable(X, Unif, V) .
-    ceq reachableFrom(X, Y, lte(V, Y) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, constraint(Op, Y, V) Unif) = true if reachable(X, Unif, V) .
+    ceq reachableFrom(X, Y, constraint(Op, V, Y) Unif) = true if reachable(X, Unif, V) .
     eq reachableFrom(X, X, Unif) = true .
     eq reachableFrom(X, Y, Unif) = false [owise] .
 

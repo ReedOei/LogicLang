@@ -410,10 +410,14 @@ mod LOGIC-MACRO is
         .
 endm
 
---- red dependencies('N, ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2)) .
---- --- red makeGenerator(unifToDom('2, ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2))) .
---- red makeGenerator(unifToDom('N, performUnif(('2 = 1) ('0 = 2) ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2)))) .
+--- set trace on .
+--- rew state(nil, ('3 = func('mul, '2 '2)) ('N = func('mul, '2 '2)) constraint('lte, 0, '0), '2 'mainSeq2 'N) .
 
+--- set trace on .
+--- rew state(nil, ('1 = func('mul, 2 '0)) ('N = func('mul, 2 '0)) constraint('lte, 0, '0), 'mainSeq1 'N) .
+
+--- set trace on .
+--- set trace eq off .
 rew program(
 stdlib
 

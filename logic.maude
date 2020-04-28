@@ -428,14 +428,12 @@ query(
     --- func('nat, 'Len)
     --- func('choose, 'Len)
 
-    --- TODO: Why does this have no solutions???
-    --- TODO: WHY DOES IT SAY 8 IS A SOLUTION NOW...
     func('even, 'N)
     func('square, 'N)
     func('gt, 'N 6)
     func('choose, 'N)
 
-    --- func('length, 'N 'X)
+    func('length, 'N 'X)
     --- func('range, 'X 0 10)
     --- func('sum, 'Total 'X)
 )

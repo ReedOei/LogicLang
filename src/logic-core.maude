@@ -302,6 +302,7 @@ mod LOGIC-CORE is
     var T : Val .
 
     eq s(Str1) = s(Str2) = if Str1 == Str2 then mt else failure fi .
+    eq s(Str1) /= s(Str2) = if Str1 =/= Str2 then mt else failure fi .
     eq N = s(Str) = failure .
     eq N /= s(Str) = mt .
     eq N = M = if N == M then mt else failure fi .
@@ -314,14 +315,19 @@ mod LOGIC-CORE is
     eq (N = func('add, M X)) = (X = sub(N, M)) .
     eq (N = func('sub, X M)) = (X = N + M) .
     eq (N = func('sub, M X)) = (X = N + M) .
+    eq func('add, 0 V) = V .
+    eq func('add, V 0) = V .
     eq func('add, N M) = N + M .
-    eq func('sub, N M) = N + M .
+    eq func('sub, N M) = sub(N, M) .
+    eq func('sub, N 0) = N .
+    eq func('sub, V V) = 0 .
+    eq func('add, V V) = func('mul, 2 V) .
     eq func('mod, N M) = N rem M .
+    eq func('mod, V V) = 0 .
+    eq func('mod, 0 V) = 0 .
     eq func('mul, N M) = N * M .
     eq func('mul, 0 W) = 0 .
     eq func('mul, W 0) = 0 .
-
-    ceq (N = func('mul, V V)) = failure if N < 0 .
 
     vars Q R : Int .
     ceq (N = func('mul, M V)) = if R == 0 then (V = Q) else failure fi
@@ -346,8 +352,8 @@ mod LOGIC-CORE is
     eq constraint('lte, 0, func('mul, V V)) = mt .
     eq constraint('lt, 0, func('mul, V V)) = mt .
     eq constraint('lt, func('mul, V V), 0) = failure .
+    ceq (N = func('mul, V V)) = failure if N < 0 .
 
-    eq (V = func('add, W W)) = (V = func('mul, 2 W)) .
     eq constraint(Op, V, func('add, W W)) = constraint(Op, V, func('mul, 2 W)) .
 
     ceq (func(Op, V W) = func(Op, V T)) = (W = T) if cancellable(Op) .

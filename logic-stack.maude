@@ -85,8 +85,8 @@ fmod LOGIC-STACK is
     ceq moveNth(V Vs, s(N)) = W V Ws
          if W Ws := moveNth(Vs, N) .
 
-    op reverse : Stack -> Stack .
-    eq reverse(nil) = nil .
-    eq reverse(V Vs) = reverse(Vs) V .
+    --- op reverse : Stack -> Stack .
+    --- eq reverse(nil) = nil .
+    --- eq reverse(V Vs) = reverse(Vs) V .
 endfm
 

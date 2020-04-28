@@ -14,6 +14,7 @@ mod LOGIC is
     ops swap pop rot dup : -> Instr [ctor] .
     ops lt lte add sub mul mod : -> Instr [ctor] .
     op choose : -> Instr [ctor] .
+    op chooseDeps : VarList -> Instr [ctor] .
     op v : Qid -> Instr [ctor] .
     op str : String -> Instr [ctor] .
     op lbl : Qid -> Instr [ctor] .
@@ -61,7 +62,7 @@ mod LOGIC is
 
     var B Bs Bs1 Bs2 : Block .
     var BM1 BM2 Blocks : BlockMap .
-    vars L L1 L2 X Y : Qid .
+    vars L L1 L2 X Y Z : Qid .
     var I I1 I2 Is : Instr .
 
     var Str Str1 Str2 : String .
@@ -216,37 +217,64 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
 
-    crl [chooseNoDeps]:
-        [ Counter, Blocks, state(choose Is, Unif, X S) States ]
+    rl [chooseDepsDone]:
+        [ Counter, Blocks, state(chooseDeps(none) Is, Unif, S) States ]
         =>
-        [ Counter, Blocks, States runGenerator(X, makeGenerator(unifToDom(X, Unif)), Is, Unif, S) ]
-        if dependencies(X, Unif) == X .
+        [ Counter, Blocks, state(Is, Unif, S) States ] .
 
-    var Deps : Stack .
-    crl [chooseDeps]:
+    rl [chooseDepsGen]:
+        [ Counter, Blocks, state(chooseDeps(X ; Vars) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, runGenerator(X, makeGenerator(unifToDom(X, Unif)), chooseDeps(Vars) Is, Unif, S) States ] .
+
+    var Deps : VarList .
+    crl [choose]:
         [ Counter, Blocks, state(choose Is, Unif, X S) States ]
         =>
-        [ Counter, Blocks, States state(insertChoose(reverse(Deps)) Is, Unif, S) ]
+        [ Counter, Blocks, States state(chooseDeps(Deps) Is, Unif, S) ]
         if Deps := dependencies(X, Unif) .
 
-    op insertChoose : Stack -> Instr .
-    eq insertChoose(nil) = nil .
-    eq insertChoose(X Vs) = v(X) choose insertChoose(Vs) .
+    sort VarList .
+    subsort Qid < VarList .
+    vars Vars Vars1 Vars2 Vars3 : VarList .
 
-    op dependencies : Stack Unification -> Stack .
-    eq dependencies(nil, Unif) = nil .
+    op none : -> VarList [ctor] .
+    op _;_ : VarList VarList -> VarList [ctor assoc id: none] .
+    eq Vars1 ; X ; Vars2 ; X ; Vars3 = Vars1 ; X ; Vars2 ; Vars3 .
 
-    eq dependencies(N Vs, Unif) = dependencies(Vs, Unif) .
-    eq dependencies(s(Str) Vs, Unif) = dependencies(Vs, Unif) .
-    eq dependencies(func(F, Args) Vs, Unif) = dependencies(Vs Args, Unif) .
-    eq dependencies(X Vs, (X = T) Unif) = dependencies(X T Vs, Unif) .
-    eq dependencies(X Vs, (X /= T) Unif) = dependencies(X T Vs, Unif) .
-    eq dependencies(X Vs, lt(X, T) Unif) = dependencies(X T Vs, Unif) .
-    eq dependencies(X Vs, lte(X, T) Unif) = dependencies(X T Vs, Unif) .
-    eq dependencies(X Vs, lt(T, X) Unif) = dependencies(X T Vs, Unif) .
-    eq dependencies(X Vs, lte(T, X) Unif) = dependencies(X T Vs, Unif) .
+    op contains : VarList Qid -> Bool .
+    eq contains(Vars1 ; X ; Vars2, X) = true .
+    eq contains(Vars, X) = false [owise] .
 
-    eq dependencies(X Vs, Unif) = X dependencies(Vs, Unif) [owise] .
+    op insertChoose : VarList -> Instr .
+    eq insertChoose(none) = nil .
+    eq insertChoose(X) = v(X) choose .
+    eq insertChoose(X ; Vars) = v(X) choose insertChoose(Vars) .
+
+    op dependencies : Stack Unification -> VarList .
+    eq dependencies(Vs, Unif) = findDeps(none, Vs, Unif) .
+
+    op findDeps : VarList Stack Unification -> VarList .
+    eq findDeps(Vars, nil, Unif) = Vars .
+
+    eq findDeps(Vars, N Vs, Unif) = findDeps(Vars, Vs, Unif) .
+    eq findDeps(Vars, s(Str) Vs, Unif) = findDeps(Vars, Vs, Unif) .
+    eq findDeps(Vars, func(F, Args) Vs, Unif) = findDeps(Vars, Vs Args, Unif) .
+    ceq findDeps(Vars, X Vs, Unif) = findDeps(Vars, Vs, Unif) if contains(Vars, X) .
+    eq findDeps(Vars, X Vs, (X = T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, (X /= T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lt(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lte(X, T) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lt(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, lte(T, X) Unif) = findDeps(Vars, X Vs T, Unif) .
+    eq findDeps(Vars, X Vs, (func(F, Args) = func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (func(F, Args) /= func(G, ArgsF X ArgsG)) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lt(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lte(func(F, Args), func(G, ArgsF X ArgsG))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lt(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+    eq findDeps(Vars, X Vs, (lte(func(F, ArgsF X ArgsG), func(G, Args))) Unif) = findDeps(Vars, X Vs Args ArgsF ArgsG, Unif) .
+
+    eq findDeps(Vars, X Vs, Unif) = findDeps(X ; Vars, Vs, Unif) [owise] .
 
     op isVar : Val Unification -> Bool .
     eq isVar(N, Unif) = false .
@@ -277,14 +305,20 @@ mod LOGIC is
     vars ArgsG ArgsF Ws : Stack .
     var T : Val .
 
+    eq s(Str1) = s(Str2) = if Str1 == Str2 then mt else failure fi .
+    eq N = s(Str) = failure .
+    eq N /= s(Str) = mt .
+    eq N = M = if N == M then mt else failure fi .
+    eq N /= M = if N =/= M then mt else failure fi .
+    eq lt(N, M) = if N < M then mt else failure fi .
+    eq lte(N, M) = if N <= M  then mt else failure fi .
+
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
     eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
     eq unifPossible((X = T) Unif) = not (X in varsOf(T)) and unifPossible(Unif) .
-    --- If this is left over after peforming unification, then we must have failed because we would decompose if F == G.
-    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = false .
-    eq unifPossible((N = s(Str)) Unif) = false .
+    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = F in arithOps and G in arithOps and unifPossible(Unif) .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
 
     op makeEqualities : Stack Stack -> Unification .
@@ -307,13 +341,19 @@ mod LOGIC is
     eq substitute(X, W, nil) = nil .
     eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
 
+    op arithOps : -> Stack .
+    eq arithOps = 'add 'mul 'sub 'mod .
+
     op performUnif : Unification -> Unification .
     eq performUnif((V = V) Unif) = performUnif(Unif) .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
         if not (X in varsOf(T)) and notVar(T) and X in varsOf(Unif) .
     ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
         if X =/= Y and X in varsOf(Unif) and Y in varsOf(Unif) .
-    eq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif) .
+
+    --- We can only do this for non-builtin operations (because X + Y = A + B doesn't mean X = A and Y = B)
+    ceq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif)
+        if not F in arithOps .
 
     vars NewV NewW : Val .
     ceq performUnif((V = W) Unif) = performUnif((NewV = W) Unif)
@@ -329,11 +369,6 @@ mod LOGIC is
     ceq performUnif(lte(V, W) Unif) = performUnif(lte(V, NewW) Unif)
         if computed(NewW) := simplify(W) .
 
-    eq performUnif(lt(N, M) Unif) =
-        if N < M then performUnif(Unif) else failure fi .
-    eq performUnif(lte(N, M) Unif) =
-        if N <= M then performUnif(Unif) else failure fi .
-
     --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
     ceq performUnif(Unif) = performUnif((X = V) Unif)
         if (Vs X Ws) := varsOf(Unif) /\
@@ -344,6 +379,7 @@ mod LOGIC is
         if (Vs X Ws) := varsOf(Unif) /\
            computed(nil) := domToVals(unifToDom(X, Unif)) .
 
+    eq performUnif(failure Unif) = failure .
     eq performUnif(Unif) = Unif [owise] .
 
     op inEquation : Qid Unification -> Bool .
@@ -445,7 +481,7 @@ mod LOGIC-MACRO is
     var Str : String .
 
     var N : Nat .
-    vars F X Y L : Qid .
+    vars F X Y Z L : Qid .
 
     vars I Is : Instr .
 
@@ -544,252 +580,252 @@ mod LOGIC-MACRO is
             goto
         end
 
-        --- Empty case
-        block 'length start
-            int(0)
-            unif
-            functor('empty, 0)
-            unif
-            goto
-        end
+        --- --- Empty case
+        --- block 'length start
+        ---     int(0)
+        ---     unif
+        ---     functor('empty, 0)
+        ---     unif
+        ---     goto
+        --- end
 
-        --- Var case
-        block 'length start
-            --- L Xs
-            isvar
-            swap
-            --- Xs L
-            fresh
-            --- T Xs L
-            dup
-            rot
-            fresh
-            functor('cons, 2)
-            --- cons(H, T) Xs T L
-            unif
-            --- T L
-            fresh
-            --- TailLen T L
-            dup
-            --- TailLen TailLen T L
-            rot
-            --- TailLen T TailLen L
-            lbl('lengthconsvarend)
-            rot
-            --- TailLen T 'lengthconsvarend TailLen L
-            lbl('length)
-            goto
-        end
+        --- --- Var case
+        --- block 'length start
+        ---     --- L Xs
+        ---     isvar
+        ---     swap
+        ---     --- Xs L
+        ---     fresh
+        ---     --- T Xs L
+        ---     dup
+        ---     rot
+        ---     fresh
+        ---     functor('cons, 2)
+        ---     --- cons(H, T) Xs T L
+        ---     unif
+        ---     --- T L
+        ---     fresh
+        ---     --- TailLen T L
+        ---     dup
+        ---     --- TailLen TailLen T L
+        ---     rot
+        ---     --- TailLen T TailLen L
+        ---     lbl('lengthconsvarend)
+        ---     rot
+        ---     --- TailLen T 'lengthconsvarend TailLen L
+        ---     lbl('length)
+        ---     goto
+        --- end
 
-        block 'lengthconsvarend start
-            int(1)
-            add
-            unif
-            goto
-        end
+        --- block 'lengthconsvarend start
+        ---     int(1)
+        ---     add
+        ---     unif
+        ---     goto
+        --- end
 
-        --- Nonvar case
-        block 'length start
-            --- L Xs
-            nonvar
-            dup
-            int(0)
-            lt
-            --- L Xs
-            int(1)
-            --- 1 L Xs
-            swap
-            --- L 1 Xs
-            sub
+        --- --- Nonvar case
+        --- block 'length start
+        ---     --- L Xs
+        ---     nonvar
+        ---     dup
+        ---     int(0)
+        ---     lt
+        ---     --- L Xs
+        ---     int(1)
+        ---     --- 1 L Xs
+        ---     swap
+        ---     --- L 1 Xs
+        ---     sub
 
-            swap
-            --- Xs L1
-            fresh
-            --- T Xs L1
-            dup
-            --- T T Xs L1
-            rot
-            --- T Xs T L1
-            fresh
-            --- H T Xs T L1
-            functor('cons, 2)
-            --- cons(H, T) Xs T L1
-            unif
-            --- T L1
+        ---     swap
+        ---     --- Xs L1
+        ---     fresh
+        ---     --- T Xs L1
+        ---     dup
+        ---     --- T T Xs L1
+        ---     rot
+        ---     --- T Xs T L1
+        ---     fresh
+        ---     --- H T Xs T L1
+        ---     functor('cons, 2)
+        ---     --- cons(H, T) Xs T L1
+        ---     unif
+        ---     --- T L1
 
-            swap
-            --- L1 T
-            lbl('length)
-            goto
-        end
+        ---     swap
+        ---     --- L1 T
+        ---     lbl('length)
+        ---     goto
+        --- end
 
-        block 'between start
-            --- X Low High
-            isvar
-            unif
-            pop
-            goto
-        end
+        --- block 'between start
+        ---     --- X Low High
+        ---     isvar
+        ---     unif
+        ---     pop
+        ---     goto
+        --- end
 
-        block 'between start
-            --- X Low High
-            isvar
-            swap
-            int(1)
-            add
-            swap
-            --- X (Low + 1) High
-            lbl('between)
-            goto
-        end
+        --- block 'between start
+        ---     --- X Low High
+        ---     isvar
+        ---     swap
+        ---     int(1)
+        ---     add
+        ---     swap
+        ---     --- X (Low + 1) High
+        ---     lbl('between)
+        ---     goto
+        --- end
 
-        block 'between start
-            --- X Low High
-            nonvar
+        --- block 'between start
+        ---     --- X Low High
+        ---     nonvar
 
-            dup
-            rot
-            int(1)
-            swap
-            sub
-            lt
+        ---     dup
+        ---     rot
+        ---     int(1)
+        ---     swap
+        ---     sub
+        ---     lt
 
-            --- X High
-            int(1)
-            add
-            lt
-            goto
-        end
+        ---     --- X High
+        ---     int(1)
+        ---     add
+        ---     lt
+        ---     goto
+        --- end
 
-        block 'sum start
-            --- Res X
-            swap
-            functor('empty, 0)
-            unif
-            --- Res
-            int(0)
-            unif
-            goto
-        end
+        --- block 'sum start
+        ---     --- Res X
+        ---     swap
+        ---     functor('empty, 0)
+        ---     unif
+        ---     --- Res
+        ---     int(0)
+        ---     unif
+        ---     goto
+        --- end
 
-        block 'sum start
-            --- Res Xs
-            swap
-            fresh
-            --- T Xs Res
-            dup
-            rot
-            --- T Xs T Res
-            fresh
-            --- H T Xs T Res
-            dup
-            rot
-            --- H T H Xs T Res
-            functor('cons, 2)
-            --- cons(H, T) H Xs T Res
-            swap
-            rot
-            --- cons(H, T) Xs H T Res
-            unif
+        --- block 'sum start
+        ---     --- Res Xs
+        ---     swap
+        ---     fresh
+        ---     --- T Xs Res
+        ---     dup
+        ---     rot
+        ---     --- T Xs T Res
+        ---     fresh
+        ---     --- H T Xs T Res
+        ---     dup
+        ---     rot
+        ---     --- H T H Xs T Res
+        ---     functor('cons, 2)
+        ---     --- cons(H, T) H Xs T Res
+        ---     swap
+        ---     rot
+        ---     --- cons(H, T) Xs H T Res
+        ---     unif
 
-            --- H T Res
-            swap
-            fresh
-            --- TailSum T H Res
-            dup
-            rot
-            --- TailSum T TailSum H Res
-            lbl('sumend)
-            rot
-            --- TailSum T 'sumend TailSum H Res
-            lbl('sum)
-            goto
-        end
+        ---     --- H T Res
+        ---     swap
+        ---     fresh
+        ---     --- TailSum T H Res
+        ---     dup
+        ---     rot
+        ---     --- TailSum T TailSum H Res
+        ---     lbl('sumend)
+        ---     rot
+        ---     --- TailSum T 'sumend TailSum H Res
+        ---     lbl('sum)
+        ---     goto
+        --- end
 
-        block 'sumend start
-            --- TailSum H Res
-            add
-            unif
-            goto
-        end
+        --- block 'sumend start
+        ---     --- TailSum H Res
+        ---     add
+        ---     unif
+        ---     goto
+        --- end
 
-        block 'range start
-            --- List Low High
-            rot
-            --- Low High List
-            swap
-            lt
-            --- List
-            functor('empty, 0)
-            --- empty List
-            unif
-            goto
-        end
+        --- block 'range start
+        ---     --- List Low High
+        ---     rot
+        ---     --- Low High List
+        ---     swap
+        ---     lt
+        ---     --- List
+        ---     functor('empty, 0)
+        ---     --- empty List
+        ---     unif
+        ---     goto
+        --- end
 
-        block 'range start
-            --- List Low High
-            rot
-            --- Low High List
-            dup
-            --- Low Low High List
-            rot
-            --- Low High Low List
-            swap
-            --- High Low Low List
-            dup
-            --- High High Low Low List
-            rot
-            --- High Low High Low List
-            swap
-            --- Low High High Low List
-            lte
-            --- High Low List
-            rot
-            --- Low List High
-            dup
-            --- Low Low List High
-            rot
-            --- Low List Low High
-            fresh
-            --- H Low List Low High
-            dup
-            rot
-            --- H Low H List Low High
-            unif
-            --- H List Low High
-            fresh
-            dup
-            rot
-            --- T H T List Low High
-            swap
-            functor('cons, 2)
-            --- cons(H, T) T List Low High
-            rot
-            --- T List cons(H, T) Low High
-            rot
-            --- List cons(H, T) T Low High
-            unif
-            --- T Low High
-            swap
-            --- Low T High
-            int(1)
-            add
-            swap
-            --- T (Low + 1) High
-            lbl('range)
-            goto
-        end
+        --- block 'range start
+        ---     --- List Low High
+        ---     rot
+        ---     --- Low High List
+        ---     dup
+        ---     --- Low Low High List
+        ---     rot
+        ---     --- Low High Low List
+        ---     swap
+        ---     --- High Low Low List
+        ---     dup
+        ---     --- High High Low Low List
+        ---     rot
+        ---     --- High Low High Low List
+        ---     swap
+        ---     --- Low High High Low List
+        ---     lte
+        ---     --- High Low List
+        ---     rot
+        ---     --- Low List High
+        ---     dup
+        ---     --- Low Low List High
+        ---     rot
+        ---     --- Low List Low High
+        ---     fresh
+        ---     --- H Low List Low High
+        ---     dup
+        ---     rot
+        ---     --- H Low H List Low High
+        ---     unif
+        ---     --- H List Low High
+        ---     fresh
+        ---     dup
+        ---     rot
+        ---     --- T H T List Low High
+        ---     swap
+        ---     functor('cons, 2)
+        ---     --- cons(H, T) T List Low High
+        ---     rot
+        ---     --- T List cons(H, T) Low High
+        ---     rot
+        ---     --- List cons(H, T) T Low High
+        ---     unif
+        ---     --- T Low High
+        ---     swap
+        ---     --- Low T High
+        ---     int(1)
+        ---     add
+        ---     swap
+        ---     --- T (Low + 1) High
+        ---     lbl('range)
+        ---     goto
+        --- end
 
-        block 'in start
-            --- X Low High
-            dup
-            rot
-            --- X Low X High
-            swap
-            lte
-            lte
-            goto
-        end
+        --- block 'in start
+        ---     --- X Low High
+        ---     dup
+        ---     rot
+        ---     --- X Low X High
+        ---     swap
+        ---     lte
+        ---     lte
+        ---     goto
+        --- end
 
         block 'choose start
             --- V
@@ -800,21 +836,51 @@ mod LOGIC-MACRO is
         block 'even start
             --- N
             fresh
-            --- K
+            --- K N
             dup
+            --- K K N
             rot
-            int(2)
-            mul
+            --- K N K
+            dup
+            --- K K N K
+            add
             --- 2K N K
             unif
+            --- K
             lbl('nat)
+            goto
+        end
+
+        block 'square start
+            --- N
+            fresh
+            --- K N
+            dup
+            --- K K N
+            rot
+            --- K N K
+            dup
+            --- K K N K
+            mul
+            --- K^2 N K
+            unif
+            --- K
+            lbl('nat)
+            goto
+        end
+
+        block 'gt start
+            swap
+            lt
             goto
         end
         .
 endm
 
---- set trace on .
---- set trace eq off .
+--- red dependencies('N, ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2)) .
+--- --- red makeGenerator(unifToDom('2, ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2))) .
+--- red makeGenerator(unifToDom('N, performUnif(('2 = 1) ('0 = 2) ('1 = func('add, '0 '0)) ('3 = func('mul, '2 '2)) ('N = func('add, '0 '0)) (func('add, '0 '0) = func('mul, '2 '2)) lt(0, func('add, '0 '0)) lte(0, '0) lte(0, '2)))) .
+
 rew program(
 stdlib
 
@@ -825,7 +891,11 @@ query(
     --- func('nat, 'Len)
     --- func('choose, 'Len)
 
+    --- TODO: Why does this have no solutions???
+    --- TODO: WHY DOES IT SAY 8 IS A SOLUTION NOW...
     func('even, 'N)
+    func('square, 'N)
+    func('gt, 'N 6)
     func('choose, 'N)
 
     --- func('length, 'Len 'X)
@@ -845,10 +915,10 @@ query(
 ---     choose
 --- end
 
-facts(
-    func('age, s("reed") 21)
-    func('age, s("meg") 22)
-)
+--- facts(
+---     func('age, s("reed") 21)
+---     func('age, s("meg") 22)
+--- )
 
 ) .
 

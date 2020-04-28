@@ -301,6 +301,7 @@ mod LOGIC-CORE is
     vars ArgsG ArgsF Ws : Stack .
     var T : Val .
 
+    eq (V = V) = mt .
     eq s(Str1) = s(Str2) = if Str1 == Str2 then mt else failure fi .
     eq s(Str1) /= s(Str2) = if Str1 =/= Str2 then mt else failure fi .
     eq N = s(Str) = failure .
@@ -311,15 +312,25 @@ mod LOGIC-CORE is
     eq constraint('lte, N, M) = if N <= M  then mt else failure fi .
     eq failure UIt Unif = failure .
 
-    eq (N = func('add, X M)) = (X = sub(N, M)) .
-    eq (N = func('add, M X)) = (X = sub(N, M)) .
-    eq (N = func('sub, X M)) = (X = N + M) .
-    eq (N = func('sub, M X)) = (X = N + M) .
+    eq (N = func('add, V M)) = (V = sub(N, M)) .
+    eq (N = func('add, M V)) = (V = sub(N, M)) .
+    eq (N = func('sub, V M)) = (V = N + M) .
+    eq (N = func('sub, M V)) = (V = N + M) .
+
+    ceq constraint(Op, N, func('add, V M)) = constraint(Op, sub(N, M), V) if orderConstraint(Op) .
+    ceq constraint(Op, N, func('add, M V)) = constraint(Op, sub(N, M), V) if orderConstraint(Op) .
+    ceq constraint(Op, N, func('sub, V M)) = constraint(Op, N + M, V) if orderConstraint(Op) .
+    ceq constraint(Op, N, func('sub, M V)) = constraint(Op, N + M, V) if orderConstraint(Op) .
+    ceq constraint(Op, func('add, V M), N) = constraint(Op, V, sub(N, M)) if orderConstraint(Op) .
+    ceq constraint(Op, func('add, M V), N) = constraint(Op, V, sub(N, M)) if orderConstraint(Op) .
+    ceq constraint(Op, func('sub, V M), N) = constraint(Op, V, N + M) if orderConstraint(Op) .
+    ceq constraint(Op, func('sub, M V), N) = constraint(Op, V, N + M) if orderConstraint(Op) .
+
     eq func('add, 0 V) = V .
     eq func('add, V 0) = V .
     eq func('add, N M) = N + M .
     eq func('sub, N M) = sub(N, M) .
-    eq func('sub, N 0) = N .
+    eq func('sub, V 0) = V .
     eq func('sub, V V) = 0 .
     eq func('add, V V) = func('mul, 2 V) .
     eq func('mod, N M) = N rem M .
@@ -328,6 +339,8 @@ mod LOGIC-CORE is
     eq func('mul, N M) = N * M .
     eq func('mul, 0 W) = 0 .
     eq func('mul, W 0) = 0 .
+    eq func('mul, 1 W) = W .
+    eq func('mul, W 1) = W .
 
     vars Q R : Int .
     ceq (N = func('mul, M V)) = if R == 0 then (V = Q) else failure fi
@@ -338,23 +351,30 @@ mod LOGIC-CORE is
            Q := N quo M .
 
     ceq (constraint(Op, N, func('mul, M V))) = constraint(Op, Q, V)
-        if R := N rem M /\
+        if orderConstraint(Op) /\
+           R := N rem M /\
            Q := N quo M /\
-           orderConstraint(Op) /\
            R == 0 .
     ceq (constraint(Op, N, func('mul, V M))) = constraint(Op, Q, V)
-        if R := N rem M /\
+        if orderConstraint(Op) /\
+           R := N rem M /\
            Q := N quo M /\
-           orderConstraint(Op) /\
+           R == 0 .
+    ceq (constraint(Op, func('mul, M V), N)) = constraint(Op, V, Q)
+        if orderConstraint(Op) /\
+           R := N rem M /\
+           Q := N quo M /\
+           R == 0 .
+    ceq (constraint(Op, func('mul, V M), N)) = constraint(Op, V, Q)
+        if orderConstraint(Op) /\
+           R := N rem M /\
+           Q := N quo M /\
            R == 0 .
 
     --- We always have V^2 >= 0
     eq constraint('lte, 0, func('mul, V V)) = mt .
-    eq constraint('lt, 0, func('mul, V V)) = mt .
     eq constraint('lt, func('mul, V V), 0) = failure .
     ceq (N = func('mul, V V)) = failure if N < 0 .
-
-    eq constraint(Op, V, func('add, W W)) = constraint(Op, V, func('mul, 2 W)) .
 
     ceq (func(Op, V W) = func(Op, V T)) = (W = T) if cancellable(Op) .
     ceq (func(Op, W V) = func(Op, T V)) = (W = T) if cancellable(Op) .
@@ -411,7 +431,6 @@ mod LOGIC-CORE is
     eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
 
     op performUnif : Unification -> Unification .
-    eq performUnif((V = V) Unif) = performUnif(Unif) .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
         if not contains(varsOf(T), X) and notVar(T) and contains(varsOf(Unif), X) .
     ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
@@ -421,6 +440,7 @@ mod LOGIC-CORE is
     ceq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif)
         if not isArith(F) .
 
+    var Vals : Stack .
     --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
     ceq performUnif(Unif) = performUnif((X = V) Unif)
         if (Vs X Ws) := varsOf(Unif) /\

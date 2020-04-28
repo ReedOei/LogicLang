@@ -430,12 +430,12 @@ query(
 
     func('even, 'N)
     func('square, 'N)
-    func('gt, 'N 6)
+    func('gt, 6 'N)
+    func('gt, 'N 0)
     func('choose, 'N)
 
-    func('length, 'N 'X)
     --- func('range, 'X 0 10)
-    --- func('sum, 'Total 'X)
+    --- func('sum, 'N 'X)
 )
 
 --- block 'main start

@@ -1,23 +1,24 @@
-load domain
-load logic-stack
+load generator
 
 mod LOGIC is
     protecting CONVERSION .
 
     protecting LOGIC-STACK .
     protecting DOMAIN .
+    protecting GENERATOR .
 
     sorts Instr Block .
 
     ops call branch goto fail : -> Instr [ctor] .
     ops fresh nonvar isvar unif dif : -> Instr [ctor] .
     ops swap pop rot dup : -> Instr [ctor] .
-    ops lt lte add sub : -> Instr [ctor] .
+    ops lt lte add sub mul mod : -> Instr [ctor] .
     op choose : -> Instr [ctor] .
     op v : Qid -> Instr [ctor] .
     op str : String -> Instr [ctor] .
     op lbl : Qid -> Instr [ctor] .
     op int : Int -> Instr [ctor] .
+    op nth : Int -> Instr [ctor] .
     op functor : Qid Nat -> Instr [ctor] .
 
     op nil : -> Instr [ctor] .
@@ -54,6 +55,7 @@ mod LOGIC is
     sort State .
     op nil : -> State [ctor] .
     op state : Instr Unification Stack -> State [ctor] .
+    op runGenerator : Qid Generator Instr Unification Stack -> State [ctor] .
     op runUnif : Instr Unification Stack -> State [ctor] .
     op __ : State State -> State [ctor assoc id: nil] .
 
@@ -85,6 +87,19 @@ mod LOGIC is
     eq makeBlockStates(block L start Is end Bs, Unif, S) =
         state(Is, Unif, S)
         makeBlockStates(Bs, Unif, S) .
+
+    vars Gen NewGen Gens : Generator .
+    crl [generateNew]:
+        [ Counter, Blocks, runGenerator(X, Gen, Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, runUnif(Is, (X = N) Unif, S) States runGenerator(X, NewGen, Is, Unif, S) ]
+        if < NewGen ; N > := next(Gen) .
+
+    crl [generateDone]:
+        [ Counter, Blocks, runGenerator(X, Gen, Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States ]
+        if done(Gen) .
 
     rl [goto]:
         [ Counter, (L |-> Bs) Blocks , state(goto, Unif, L S) States ]
@@ -132,6 +147,11 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(Is, Unif, N S) ] .
 
+    rl [nth]:
+        [ Counter, Blocks, state(nth(N) Is, Unif, S) States ]
+        =>
+        [ Counter, Blocks, States state(Is, Unif, moveNth(S, N)) ] .
+
     rl [string]:
         [ Counter, Blocks, state(str(Str) Is, Unif, S) States ]
         =>
@@ -147,6 +167,18 @@ mod LOGIC is
         [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
         =>
         [ Counter + 1, Blocks, States runUnif(Is, (X = func('sub, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    crl [mul]:
+        [ Counter, Blocks, state(mul Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('mul, V W)) Unif, X S) ]
+        if X := qid(string(Counter, 10)) .
+
+    crl [mod]:
+        [ Counter, Blocks, state(mod Is, Unif, V W S) States ]
+        =>
+        [ Counter + 1, Blocks, States runUnif(Is, (X = func('mod, V W)) Unif, X S) ]
         if X := qid(string(Counter, 10)) .
 
     rl [lt]:
@@ -184,15 +216,10 @@ mod LOGIC is
         =>
         [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
 
-    op makeChoiceStates : Qid Stack Instr Unification Stack -> State .
-    eq makeChoiceStates(X, nil, Is, Unif, S) = nil .
-    eq makeChoiceStates(X, V Vs, Is, Unif, S) = runUnif(Is, (X = V) Unif, S) makeChoiceStates(X, Vs, Is, Unif, S) .
-
-    crl [choose]:
+    rl [choose]:
         [ Counter, Blocks, state(choose Is, Unif, X S) States ]
         =>
-        [ Counter, Blocks, States makeChoiceStates(X, Vs, Is, Unif, S) ]
-        if computed(Vs) := domToVals(unifToDom(X, Unif)) .
+        [ Counter, Blocks, States runGenerator(X, makeGenerator(unifToDom(X, Unif)), Is, Unif, S) ] .
 
     op isVar : Val Unification -> Bool .
     eq isVar(N, Unif) = false .
@@ -226,15 +253,11 @@ mod LOGIC is
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
-    eq unifPossible((N = M) Unif) = N == M and unifPossible(Unif) .
-    eq unifPossible((s(Str1) = s(Str2)) Unif) = Str1 == Str2 and unifPossible(Unif) .
     eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
     eq unifPossible((X = T) Unif) = not (X in varsOf(T)) and unifPossible(Unif) .
     --- If this is left over after peforming unification, then we must have failed because we would decompose if F == G.
     eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = false .
-    eq unifPossible((N = func(F, Args)) Unif) = false .
     eq unifPossible((N = s(Str)) Unif) = false .
-    eq unifPossible((func(F, Args) = s(Str)) Unif) = false .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
 
     op makeEqualities : Stack Stack -> Unification .
@@ -285,10 +308,14 @@ mod LOGIC is
         if N <= M then performUnif(Unif) else failure fi .
 
     --- If all the constraints we have guarantee a single value for some variable, just unify the variable with it's single value
-    ceq performUnif(Unif) = performUnif(substitute(X, V, Unif))
+    ceq performUnif(Unif) = performUnif((X = V) Unif)
         if (Vs X Ws) := varsOf(Unif) /\
            not (inEquation(X, Unif)) /\
            computed(V) := domToVals(unifToDom(X, Unif)) .
+
+    ceq performUnif(Unif) = failure
+        if (Vs X Ws) := varsOf(Unif) /\
+           computed(nil) := domToVals(unifToDom(X, Unif)) .
 
     eq performUnif(Unif) = Unif [owise] .
 
@@ -593,20 +620,14 @@ mod LOGIC-MACRO is
         block 'between start
             --- X Low High
             isvar
-            lbl('betweenvarlow)
-            lbl('betweenvarhigh)
-            branch
-        end
-
-        block 'betweenvarlow start
-            --- X Low High
             unif
             pop
             goto
         end
 
-        block 'betweenvarhigh start
+        block 'between start
             --- X Low High
+            isvar
             swap
             int(1)
             add
@@ -751,7 +772,25 @@ mod LOGIC-MACRO is
             --- T (Low + 1) High
             lbl('range)
             goto
-        end .
+        end
+
+        block 'in start
+            --- X Low High
+            dup
+            rot
+            --- X Low X High
+            swap
+            lte
+            lte
+            goto
+        end
+
+        block 'choose start
+            --- V
+            choose
+            goto
+        end
+        .
 endm
 
 --- set trace on .
@@ -760,8 +799,11 @@ rew program(
 stdlib
 
 query(
-    func('length, 10 'X)
-    --- func('range, 'X 0 10)
+    func('in, 'Len 0 10)
+    func('choose, 'Len)
+
+    func('length, 'Len 'X)
+    func('range, 'X 0 10)
     --- func('sum, 'Total 'X)
 )
 

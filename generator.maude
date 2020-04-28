@@ -1,0 +1,56 @@
+load domain
+load logic-stack
+
+mod GENERATOR is
+    protecting DOMAIN .
+    protecting LOGIC-STACK .
+
+    sorts Generator GeneratorRes .
+
+    op <_;_> : Generator Stack -> GeneratorRes [ctor] .
+
+    subsort Domain < Generator .
+    op nil : -> Generator .
+    op __ : Generator Generator -> Generator [ctor assoc] .
+
+    eq nil Gens = Gens .
+    eq Gens nil = Gens .
+
+    var Dom : Domain .
+    vars Low High : ExInt .
+    vars N M : Int .
+
+    op makeGenerator : Domain -> Generator .
+    eq makeGenerator(empty) = nil .
+    eq makeGenerator(universal) = range(negInf, 0) range(1, posInf) .
+    eq makeGenerator(range(Low, High)) = range(Low, High) .
+    eq makeGenerator(range(Low, High) U Dom) = range(Low, High) makeGenerator(Dom) .
+
+    vars Gen NewGen Gens : Generator .
+
+    eq empty Gen = Gen .
+    eq Gen empty = Gen .
+
+    op done : Generator -> Bool .
+    eq done(Gen) = Gen == nil or Gen == empty .
+
+    op next : Generator -> GeneratorRes .
+    eq next(range(negInf, N)) = < range(negInf, sub(N, 1)) ; N > .
+    eq next(range(N, High)) = < range(N + 1, High) ; N > .
+    ceq next(universal) = < Gen range(1, posInf) ; N >
+        if < Gen ; N > := next(range(negInf, 0)) .
+    ceq next(Gen Gens) = < Gens NewGen ; N >
+        if < NewGen ; N > := next(Gen) .
+
+    var FinalGen : Generator .
+    var Vs : Stack .
+
+    var C : Nat .
+
+    op genMany : Generator Nat -> GeneratorRes .
+    eq genMany(Gen, 0) = < Gen ; nil > .
+    ceq genMany(Gen, s(C)) = < FinalGen ; M Vs >
+        if < NewGen ; M > := next(Gen) /\
+           < FinalGen ; Vs > := genMany(NewGen, C) .
+endm
+

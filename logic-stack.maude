@@ -16,7 +16,7 @@ fmod LOGIC-STACK is
     op nil : -> Stack [ctor] .
     op __ : Stack Stack -> Stack [ctor assoc id: nil] .
 
-    vars N M Num : Nat .
+    vars N M Num : Int .
     vars Args Ws Vs S : Stack .
     vars V W NewV NewW : Val .
     vars X Y F G : Qid .
@@ -63,6 +63,8 @@ fmod LOGIC-STACK is
         if computed(NewArgs) := simplifyStack(Args) .
     eq simplify(func('add, N M)) = computed(N + M) .
     eq simplify(func('sub, N M)) = computed(sub(N, M)) .
+    eq simplify(func('mul, N M)) = computed(N * M) .
+    eq simplify(func('mod, N M)) = computed(N rem M) .
     eq simplify(V) = insufficient [owise] .
 
     op simplifyStack : Stack -> Computed .
@@ -73,5 +75,14 @@ fmod LOGIC-STACK is
     op buildRange : Int Int -> Stack .
     ceq buildRange(N, M) = N buildRange(N + 1, M) if N <= M .
     eq buildRange(N, M) = nil [owise] .
+
+    op _[_] : Stack Int -> Val .
+    eq (V Vs)[0] = V .
+    eq (V Vs)[s(N)] = Vs[N] .
+
+    op moveNth : Stack Int -> Stack .
+    eq moveNth(V Vs, 0) = V Vs .
+    ceq moveNth(V Vs, s(N)) = W V Ws
+         if W Ws := moveNth(Vs, N) .
 endfm
 

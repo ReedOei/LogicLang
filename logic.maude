@@ -1,4 +1,4 @@
-load logic-core
+load src/logic-core
 
 mod LOGIC-MACRO is
     protecting LOGIC-CORE .

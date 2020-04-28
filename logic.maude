@@ -286,20 +286,20 @@ mod LOGIC is
     vars F G : Qid .
     vars Vs Args : Stack .
 
-    op varsOf : Unification -> Stack .
-    op varsOf : Val -> Val .
-    op varsOf : Stack -> Stack .
+    op varsOf : Unification -> VarList .
+    op varsOf : Val -> VarList .
+    op varsOf : Stack -> VarList .
     eq varsOf(X) = X .
-    eq varsOf(N) = nil .
-    eq varsOf(s(Str)) = nil .
+    eq varsOf(N) = none .
+    eq varsOf(s(Str)) = none .
     eq varsOf(func(F, Args)) = varsOf(Args) .
-    eq varsOf(nil) = nil .
-    eq varsOf(V Vs) = varsOf(V) varsOf(Vs) .
-    eq varsOf(mt) = nil .
-    eq varsOf((V = W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
-    eq varsOf((V /= W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
-    eq varsOf(lt(V, W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
-    eq varsOf(lte(V, W) Unif) = varsOf(V) varsOf(W) varsOf(Unif) .
+    eq varsOf(nil) = none .
+    eq varsOf(V Vs) = varsOf(V) ; varsOf(Vs) .
+    eq varsOf(mt) = none .
+    eq varsOf((V = W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf((V /= W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf(lt(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
+    eq varsOf(lte(V, W) Unif) = varsOf(V) ; varsOf(W) ; varsOf(Unif) .
 
     var Fun : Func .
     vars ArgsG ArgsF Ws : Stack .
@@ -312,13 +312,14 @@ mod LOGIC is
     eq N /= M = if N =/= M then mt else failure fi .
     eq lt(N, M) = if N < M then mt else failure fi .
     eq lte(N, M) = if N <= M  then mt else failure fi .
+    eq failure UIt Unif = failure .
 
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
     eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
-    eq unifPossible((X = T) Unif) = not (X in varsOf(T)) and unifPossible(Unif) .
-    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = F in arithOps and G in arithOps and unifPossible(Unif) .
+    eq unifPossible((X = T) Unif) = not contains(varsOf(T), X) and unifPossible(Unif) .
+    eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = contains(arithOps, F) and contains(arithOps, G) and unifPossible(Unif) .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
 
     op makeEqualities : Stack Stack -> Unification .
@@ -341,19 +342,19 @@ mod LOGIC is
     eq substitute(X, W, nil) = nil .
     eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
 
-    op arithOps : -> Stack .
-    eq arithOps = 'add 'mul 'sub 'mod .
+    op arithOps : -> VarList .
+    eq arithOps = 'add ; 'mul ; 'sub ; 'mod .
 
     op performUnif : Unification -> Unification .
     eq performUnif((V = V) Unif) = performUnif(Unif) .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
-        if not (X in varsOf(T)) and notVar(T) and X in varsOf(Unif) .
+        if not contains(varsOf(T), X) and notVar(T) and contains(varsOf(Unif), X) .
     ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
-        if X =/= Y and X in varsOf(Unif) and Y in varsOf(Unif) .
+        if X =/= Y and contains(varsOf(Unif), X) and contains(varsOf(Unif), Y) .
 
     --- We can only do this for non-builtin operations (because X + Y = A + B doesn't mean X = A and Y = B)
     ceq performUnif((func(F, ArgsF) = func(F, ArgsG)) Unif) = performUnif(makeEqualities(ArgsF, ArgsG) Unif)
-        if not F in arithOps .
+        if not contains(arithOps, F) .
 
     vars NewV NewW : Val .
     ceq performUnif((V = W) Unif) = performUnif((NewV = W) Unif)
@@ -379,7 +380,6 @@ mod LOGIC is
         if (Vs X Ws) := varsOf(Unif) /\
            computed(nil) := domToVals(unifToDom(X, Unif)) .
 
-    eq performUnif(failure Unif) = failure .
     eq performUnif(Unif) = Unif [owise] .
 
     op inEquation : Qid Unification -> Bool .
@@ -493,6 +493,11 @@ mod LOGIC-MACRO is
     eq toInstr(nil) = nil .
     eq toInstr(V Vs) = toInstr(Vs) toInstr(V) .
 
+    var Vars : VarList .
+    op toInstr : VarList -> Instr .
+    eq toInstr(none) = nil .
+    eq toInstr(X ; Vars) = v(X) toInstr(Vars) .
+
     op doCall : Qid Func -> Instr .
     eq doCall(L, func(F, Args)) =
         lbl(L)
@@ -580,252 +585,252 @@ mod LOGIC-MACRO is
             goto
         end
 
-        --- --- Empty case
-        --- block 'length start
-        ---     int(0)
-        ---     unif
-        ---     functor('empty, 0)
-        ---     unif
-        ---     goto
-        --- end
+        --- Empty case
+        block 'length start
+            int(0)
+            unif
+            functor('empty, 0)
+            unif
+            goto
+        end
 
-        --- --- Var case
-        --- block 'length start
-        ---     --- L Xs
-        ---     isvar
-        ---     swap
-        ---     --- Xs L
-        ---     fresh
-        ---     --- T Xs L
-        ---     dup
-        ---     rot
-        ---     fresh
-        ---     functor('cons, 2)
-        ---     --- cons(H, T) Xs T L
-        ---     unif
-        ---     --- T L
-        ---     fresh
-        ---     --- TailLen T L
-        ---     dup
-        ---     --- TailLen TailLen T L
-        ---     rot
-        ---     --- TailLen T TailLen L
-        ---     lbl('lengthconsvarend)
-        ---     rot
-        ---     --- TailLen T 'lengthconsvarend TailLen L
-        ---     lbl('length)
-        ---     goto
-        --- end
+        --- Var case
+        block 'length start
+            --- L Xs
+            isvar
+            swap
+            --- Xs L
+            fresh
+            --- T Xs L
+            dup
+            rot
+            fresh
+            functor('cons, 2)
+            --- cons(H, T) Xs T L
+            unif
+            --- T L
+            fresh
+            --- TailLen T L
+            dup
+            --- TailLen TailLen T L
+            rot
+            --- TailLen T TailLen L
+            lbl('lengthconsvarend)
+            rot
+            --- TailLen T 'lengthconsvarend TailLen L
+            lbl('length)
+            goto
+        end
 
-        --- block 'lengthconsvarend start
-        ---     int(1)
-        ---     add
-        ---     unif
-        ---     goto
-        --- end
+        block 'lengthconsvarend start
+            int(1)
+            add
+            unif
+            goto
+        end
 
-        --- --- Nonvar case
-        --- block 'length start
-        ---     --- L Xs
-        ---     nonvar
-        ---     dup
-        ---     int(0)
-        ---     lt
-        ---     --- L Xs
-        ---     int(1)
-        ---     --- 1 L Xs
-        ---     swap
-        ---     --- L 1 Xs
-        ---     sub
+        --- Nonvar case
+        block 'length start
+            --- L Xs
+            nonvar
+            dup
+            int(0)
+            lt
+            --- L Xs
+            int(1)
+            --- 1 L Xs
+            swap
+            --- L 1 Xs
+            sub
 
-        ---     swap
-        ---     --- Xs L1
-        ---     fresh
-        ---     --- T Xs L1
-        ---     dup
-        ---     --- T T Xs L1
-        ---     rot
-        ---     --- T Xs T L1
-        ---     fresh
-        ---     --- H T Xs T L1
-        ---     functor('cons, 2)
-        ---     --- cons(H, T) Xs T L1
-        ---     unif
-        ---     --- T L1
+            swap
+            --- Xs L1
+            fresh
+            --- T Xs L1
+            dup
+            --- T T Xs L1
+            rot
+            --- T Xs T L1
+            fresh
+            --- H T Xs T L1
+            functor('cons, 2)
+            --- cons(H, T) Xs T L1
+            unif
+            --- T L1
 
-        ---     swap
-        ---     --- L1 T
-        ---     lbl('length)
-        ---     goto
-        --- end
+            swap
+            --- L1 T
+            lbl('length)
+            goto
+        end
 
-        --- block 'between start
-        ---     --- X Low High
-        ---     isvar
-        ---     unif
-        ---     pop
-        ---     goto
-        --- end
+        block 'between start
+            --- X Low High
+            isvar
+            unif
+            pop
+            goto
+        end
 
-        --- block 'between start
-        ---     --- X Low High
-        ---     isvar
-        ---     swap
-        ---     int(1)
-        ---     add
-        ---     swap
-        ---     --- X (Low + 1) High
-        ---     lbl('between)
-        ---     goto
-        --- end
+        block 'between start
+            --- X Low High
+            isvar
+            swap
+            int(1)
+            add
+            swap
+            --- X (Low + 1) High
+            lbl('between)
+            goto
+        end
 
-        --- block 'between start
-        ---     --- X Low High
-        ---     nonvar
+        block 'between start
+            --- X Low High
+            nonvar
 
-        ---     dup
-        ---     rot
-        ---     int(1)
-        ---     swap
-        ---     sub
-        ---     lt
+            dup
+            rot
+            int(1)
+            swap
+            sub
+            lt
 
-        ---     --- X High
-        ---     int(1)
-        ---     add
-        ---     lt
-        ---     goto
-        --- end
+            --- X High
+            int(1)
+            add
+            lt
+            goto
+        end
 
-        --- block 'sum start
-        ---     --- Res X
-        ---     swap
-        ---     functor('empty, 0)
-        ---     unif
-        ---     --- Res
-        ---     int(0)
-        ---     unif
-        ---     goto
-        --- end
+        block 'sum start
+            --- Res X
+            swap
+            functor('empty, 0)
+            unif
+            --- Res
+            int(0)
+            unif
+            goto
+        end
 
-        --- block 'sum start
-        ---     --- Res Xs
-        ---     swap
-        ---     fresh
-        ---     --- T Xs Res
-        ---     dup
-        ---     rot
-        ---     --- T Xs T Res
-        ---     fresh
-        ---     --- H T Xs T Res
-        ---     dup
-        ---     rot
-        ---     --- H T H Xs T Res
-        ---     functor('cons, 2)
-        ---     --- cons(H, T) H Xs T Res
-        ---     swap
-        ---     rot
-        ---     --- cons(H, T) Xs H T Res
-        ---     unif
+        block 'sum start
+            --- Res Xs
+            swap
+            fresh
+            --- T Xs Res
+            dup
+            rot
+            --- T Xs T Res
+            fresh
+            --- H T Xs T Res
+            dup
+            rot
+            --- H T H Xs T Res
+            functor('cons, 2)
+            --- cons(H, T) H Xs T Res
+            swap
+            rot
+            --- cons(H, T) Xs H T Res
+            unif
 
-        ---     --- H T Res
-        ---     swap
-        ---     fresh
-        ---     --- TailSum T H Res
-        ---     dup
-        ---     rot
-        ---     --- TailSum T TailSum H Res
-        ---     lbl('sumend)
-        ---     rot
-        ---     --- TailSum T 'sumend TailSum H Res
-        ---     lbl('sum)
-        ---     goto
-        --- end
+            --- H T Res
+            swap
+            fresh
+            --- TailSum T H Res
+            dup
+            rot
+            --- TailSum T TailSum H Res
+            lbl('sumend)
+            rot
+            --- TailSum T 'sumend TailSum H Res
+            lbl('sum)
+            goto
+        end
 
-        --- block 'sumend start
-        ---     --- TailSum H Res
-        ---     add
-        ---     unif
-        ---     goto
-        --- end
+        block 'sumend start
+            --- TailSum H Res
+            add
+            unif
+            goto
+        end
 
-        --- block 'range start
-        ---     --- List Low High
-        ---     rot
-        ---     --- Low High List
-        ---     swap
-        ---     lt
-        ---     --- List
-        ---     functor('empty, 0)
-        ---     --- empty List
-        ---     unif
-        ---     goto
-        --- end
+        block 'range start
+            --- List Low High
+            rot
+            --- Low High List
+            swap
+            lt
+            --- List
+            functor('empty, 0)
+            --- empty List
+            unif
+            goto
+        end
 
-        --- block 'range start
-        ---     --- List Low High
-        ---     rot
-        ---     --- Low High List
-        ---     dup
-        ---     --- Low Low High List
-        ---     rot
-        ---     --- Low High Low List
-        ---     swap
-        ---     --- High Low Low List
-        ---     dup
-        ---     --- High High Low Low List
-        ---     rot
-        ---     --- High Low High Low List
-        ---     swap
-        ---     --- Low High High Low List
-        ---     lte
-        ---     --- High Low List
-        ---     rot
-        ---     --- Low List High
-        ---     dup
-        ---     --- Low Low List High
-        ---     rot
-        ---     --- Low List Low High
-        ---     fresh
-        ---     --- H Low List Low High
-        ---     dup
-        ---     rot
-        ---     --- H Low H List Low High
-        ---     unif
-        ---     --- H List Low High
-        ---     fresh
-        ---     dup
-        ---     rot
-        ---     --- T H T List Low High
-        ---     swap
-        ---     functor('cons, 2)
-        ---     --- cons(H, T) T List Low High
-        ---     rot
-        ---     --- T List cons(H, T) Low High
-        ---     rot
-        ---     --- List cons(H, T) T Low High
-        ---     unif
-        ---     --- T Low High
-        ---     swap
-        ---     --- Low T High
-        ---     int(1)
-        ---     add
-        ---     swap
-        ---     --- T (Low + 1) High
-        ---     lbl('range)
-        ---     goto
-        --- end
+        block 'range start
+            --- List Low High
+            rot
+            --- Low High List
+            dup
+            --- Low Low High List
+            rot
+            --- Low High Low List
+            swap
+            --- High Low Low List
+            dup
+            --- High High Low Low List
+            rot
+            --- High Low High Low List
+            swap
+            --- Low High High Low List
+            lte
+            --- High Low List
+            rot
+            --- Low List High
+            dup
+            --- Low Low List High
+            rot
+            --- Low List Low High
+            fresh
+            --- H Low List Low High
+            dup
+            rot
+            --- H Low H List Low High
+            unif
+            --- H List Low High
+            fresh
+            dup
+            rot
+            --- T H T List Low High
+            swap
+            functor('cons, 2)
+            --- cons(H, T) T List Low High
+            rot
+            --- T List cons(H, T) Low High
+            rot
+            --- List cons(H, T) T Low High
+            unif
+            --- T Low High
+            swap
+            --- Low T High
+            int(1)
+            add
+            swap
+            --- T (Low + 1) High
+            lbl('range)
+            goto
+        end
 
-        --- block 'in start
-        ---     --- X Low High
-        ---     dup
-        ---     rot
-        ---     --- X Low X High
-        ---     swap
-        ---     lte
-        ---     lte
-        ---     goto
-        --- end
+        block 'in start
+            --- X Low High
+            dup
+            rot
+            --- X Low X High
+            swap
+            lte
+            lte
+            goto
+        end
 
         block 'choose start
             --- V
@@ -898,7 +903,7 @@ query(
     func('gt, 'N 6)
     func('choose, 'N)
 
-    --- func('length, 'Len 'X)
+    --- func('length, 'N 'X)
     --- func('range, 'X 0 10)
     --- func('sum, 'Total 'X)
 )

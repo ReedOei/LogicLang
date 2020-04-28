@@ -76,17 +76,9 @@ fmod LOGIC-STACK is
     ceq buildRange(N, M) = N buildRange(N + 1, M) if N <= M .
     eq buildRange(N, M) = nil [owise] .
 
-    op _[_] : Stack Int -> Val .
-    eq (V Vs)[0] = V .
-    eq (V Vs)[s(N)] = Vs[N] .
-
     op moveNth : Stack Int -> Stack .
     eq moveNth(V Vs, 0) = V Vs .
     ceq moveNth(V Vs, s(N)) = W V Ws
          if W Ws := moveNth(Vs, N) .
-
-    --- op reverse : Stack -> Stack .
-    --- eq reverse(nil) = nil .
-    --- eq reverse(V Vs) = reverse(Vs) V .
 endfm
 

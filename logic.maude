@@ -105,6 +105,10 @@ mod LOGIC-MACRO is
         if FId := qid(string(X) + "F0") /\
            GId := qid(string(X) + "G0") .
 
+    op `[_`] : Stack -> Val .
+    eq [ nil ] = func('empty, nil) .
+    eq [ V Vs ] = func('cons, V [ Vs ]) .
+
     op stdlib : -> Block .
     eq stdlib =
         block 'nat start
@@ -428,10 +432,16 @@ query(
     --- func('nat, 'Len)
     --- func('choose, 'Len)
 
-    func('even, 'N)
+    --- func('even, 'N)
+    --- func('square, 'N)
+    --- func('gt, 6 'N)
+    --- func('gt, 'N 0)
+    --- func('choose, 'N)
+
+    func('in, 'X 0 2)
+    func('sum, 'N [ 'X 'Y 'Z ])
     func('square, 'N)
-    func('gt, 6 'N)
-    func('gt, 'N 0)
+    func('gt, 'N 1)
     func('choose, 'N)
 
     --- func('range, 'X 0 10)

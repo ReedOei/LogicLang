@@ -513,28 +513,7 @@ mod LOGIC-MACRO is
     eq stdlib =
         block 'nat start
             int(0)
-            unif
-            goto
-        end
-
-        block 'nat start
-            --- N
-            lbl('natend)
-            --- 'natend N
-            fresh
-            --- N1 'natend N
-            dup
-            rot
-            --- N1 'natend N1 N
-            lbl('nat)
-            goto
-        end
-
-        block 'natend start
-            --- N1 N
-            int(1)
-            add
-            unif
+            lte
             goto
         end
 
@@ -799,8 +778,11 @@ rew program(
 stdlib
 
 query(
-    func('in, 'Len 0 10)
-    func('choose, 'Len)
+    --- func('in, 'Len 0 10)
+    --- func('choose, 'Len)
+
+    --- func('nat, 'Len)
+    --- func('choose, 'Len)
 
     func('length, 'Len 'X)
     func('range, 'X 0 10)

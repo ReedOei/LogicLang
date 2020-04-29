@@ -47,8 +47,9 @@ mod LOGIC-MACRO is
         end
         makeSeq(N + 1, X, Fs) .
 
-    op query : Stack -> Block .
-    eq query(Fs) =
+    op query : Stack -> Configuration .
+    eq query(Fs) = blocks(
+        stdlib
         block 'main start
             toInstr(varsOf(Fs))
             lbl('mainSeq0)
@@ -57,7 +58,7 @@ mod LOGIC-MACRO is
 
         sequence 'mainSeq start
             Fs
-        end .
+        end) .
 
     op facts : Stack -> Block .
     op factGen : Nat Stack -> Block .
@@ -415,17 +416,8 @@ mod LOGIC-MACRO is
 endm
 
 --- set trace on .
---- rew state(nil, ('3 = func('mul, '2 '2)) ('N = func('mul, '2 '2)) constraint('lte, 0, '0), '2 'mainSeq2 'N) .
-
---- set trace on .
---- rew state(nil, ('1 = func('mul, 2 '0)) ('N = func('mul, 2 '0)) constraint('lte, 0, '0), 'mainSeq1 'N) .
-
---- set trace on .
 --- set trace eq off .
-rew program(
-stdlib
-
-query(
+rew query(
     --- func('in, 'Len 0 10)
     --- func('choose, 'Len)
 
@@ -441,29 +433,10 @@ query(
     func('in, 'X 0 2)
     func('sum, 'N [ 'X 'Y 'Z ])
     func('square, 'N)
-    func('gt, 'N 1)
+    func('gt, 'N 6)
     func('choose, 'N)
 
     --- func('range, 'X 0 10)
     --- func('sum, 'N 'X)
-)
-
---- block 'main start
----     v('X)
----     int(10)
----     v('X)
----     lt
----     v('X)
----     int(0)
----     lt
----     v('X)
----     choose
---- end
-
---- facts(
----     func('age, s("reed") 21)
----     func('age, s("meg") 22)
---- )
-
 ) .
 

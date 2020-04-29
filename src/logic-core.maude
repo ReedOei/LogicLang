@@ -67,8 +67,8 @@ mod LOGIC-CORE is
 
     op [_,_,_] : Nat BlockMap State -> Configuration [ctor] .
 
-    op program : Block -> Configuration .
-    eq program(B) = buildConfig(mt, B) .
+    op blocks : Block -> Configuration .
+    eq blocks(B) = buildConfig(mt, B) .
 
     op buildConfig : BlockMap Block -> Configuration .
     eq buildConfig(Blocks, nil) = [0, Blocks, state(lbl('main) goto, mt, nil)] .
@@ -450,10 +450,11 @@ mod LOGIC-CORE is
 
     --- Stop on the first solution found .
     subsort State < Configuration .
+    op <_;_> : State Configuration -> Configuration [ctor frozen] .
     rl [stop]:
         [ Counter, Blocks, state(nil, Unif, S) States ]
         =>
-        state(nil, Unif, S) States .
+        < state(nil, Unif, S) ; [ Counter, Blocks, States ] > .
 
     op reachable : Qid Stack Unification -> Bool .
     eq reachable(X, nil, Unif) = false .
@@ -482,10 +483,8 @@ mod LOGIC-CORE is
         if Vars1 ; X ; Vars2 := varsOf(UIt) /\
            not reachable(X, S, UIt Unif) .
 
-    crl [garbageCollectEnd]:
-        state(Is, UIt Unif, S)
-        =>
-        state(Is, Unif, S)
+    var C : Configuration .
+    ceq < state(Is, UIt Unif, S) ; C > = < state(Is, Unif, S) ; C >
         if Vars1 ; X ; Vars2 := varsOf(UIt) /\
            not reachable(X, S, UIt Unif) .
 endm

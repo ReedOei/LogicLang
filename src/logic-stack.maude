@@ -37,10 +37,6 @@ fmod LOGIC-STACK is
     eq length(nil) = 0 .
     eq length(V Vs) = 1 + length(Vs) .
 
-    op _in_ : Val Stack -> Bool .
-    eq V in nil = false .
-    eq V in (W Vs) = (V == W) or (V in Vs ) .
-
     op notVar : Val -> Bool .
     eq notVar(X) = false .
     eq notVar(Fun) = true .

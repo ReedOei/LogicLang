@@ -24,7 +24,7 @@ mod LOGIC-MACRO is
     var Vars : VarList .
     op toInstr : VarList -> Instr .
     eq toInstr(none) = nil .
-    eq toInstr(X ; Vars) = v(X) toInstr(Vars) .
+    eq toInstr(X : Vars) = v(X) toInstr(Vars) .
 
     op doCall : Qid Func -> Instr .
     eq doCall(L, func(F, Args)) =

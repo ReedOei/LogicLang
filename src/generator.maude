@@ -1,5 +1,5 @@
 load domain
-load logic-stack
+load sets
 
 mod GENERATOR is
     protecting DOMAIN .
@@ -16,7 +16,7 @@ mod GENERATOR is
     eq nil Gens = Gens .
     eq Gens nil = Gens .
 
-    var Dom : Domain .
+    vars Dom Dom1 Dom2 : Domain .
     vars Low High : ExInt .
     vars N M : Int .
 
@@ -43,7 +43,7 @@ mod GENERATOR is
         if < NewGen ; N > := next(Gen) .
 
     var FinalGen : Generator .
-    var Vs : Stack .
+    vars Vs Ws : Stack .
 
     var C : Nat .
 
@@ -52,5 +52,14 @@ mod GENERATOR is
     ceq genMany(Gen, s(C)) = < FinalGen ; M Vs >
         if < NewGen ; M > := next(Gen) /\
            < FinalGen ; Vs > := genMany(NewGen, C) .
+
+    --- Will yield computed(Vs) if the domain is finite
+    op domToVals : Domain -> Computed .
+    eq domToVals(empty) = computed(nil) .
+    eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
+    ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
+        if computed(Vs) := domToVals(Dom1) /\
+           computed(Ws) := domToVals(Dom2) .
+    eq domToVals(Dom) = insufficient [owise] .
 endm
 

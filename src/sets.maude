@@ -1,0 +1,117 @@
+load logic-stack
+
+fmod SETS is
+    protecting LOGIC-STACK .
+
+    sort PreSet SimpleSet .
+    subsort Val < PreSet .
+    subsort Qid < SimpleSet . --- Set variables.
+    subsort SimpleSet < Val .
+
+    op empty : -> PreSet [ctor] .
+    op _;_ : PreSet PreSet -> PreSet [ctor assoc comm id: empty] .
+
+    vars V W : Val .
+
+    vars N M : Int .
+    vars S1 S2 : String .
+    vars X Y Z F G : Qid .
+    vars Args ArgsF ArgsG : Stack .
+
+    eq N ; N = N .
+    eq s(S1) ; s(S1) = s(S1) .
+    eq func(F,Args) ; func(F,Args) = func(F,Args) .
+
+    vars Ap Bp Cp Dp : PreSet .
+    vars As Bs Cs Ds : SimpleSet .
+
+    op precontains : Val PreSet -> Bool .
+    eq precontains(V, (Ap ; V ; Bp)) = true .
+    eq precontains(V, Ap) = false [owise] .
+
+    op universal : -> SimpleSet [ctor] .
+    op {} : -> SimpleSet [ctor] .
+    op {_} : PreSet -> SimpleSet [ctor] .
+    eq {empty} = {} .
+
+    op _U_ : SimpleSet SimpleSet -> SimpleSet [comm assoc] .
+    eq {Ap} U {Bp} = {Ap ; Bp} .
+    eq As U As = As .
+    eq {} U As = As .
+
+    op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
+    eq As intersect As = As .
+    eq As intersect {} = {} .
+    eq {V ; Ap} intersect {V ; Bp} = {V} U ({Ap} intersect {Bp}) .
+    eq As intersect (Bs U Cs) = (As intersect Bs) U (As intersect Cs) .
+
+    op _in_ : Val SimpleSet -> Bool .
+    eq V in {} = false .
+    eq V in {Ap} = precontains(V, Ap) .
+    eq V in (As U Bs) = V in As or V in Bs .
+
+    op _\_ : SimpleSet SimpleSet -> SimpleSet .
+    eq As \ universal = {} .
+    eq {} \ Bs = {} .
+    eq As \ {} = As .
+    eq {V ; Ap} \ {Bp} =
+        if precontains(V, Bp) then
+            {Ap} \ {Bp}
+        else
+            {V} U ({Ap} \ {Bp})
+        fi .
+    eq (As U Bs) \ Cs = (As \ Cs) U (Bs \ Cs) .
+
+    sort Subset .
+    --- Represents when we say something like {1,2,3,4} C= {}, this will instantly kill the current state when it's running.
+    op contradiction : -> Subset [ctor] .
+    op universal : -> Subset [ctor] .
+    op _C=_ : SimpleSet SimpleSet -> Subset [ctor] .
+
+    op _intersect_ : Subset Subset -> Subset [assoc comm] .
+    eq universal intersect A = A .
+    eq contradiction intersect A = contradiction .
+    eq A intersect A = A .
+    eq (As C= Cs) intersect (Bs C= Ds) = (As intersect Bs) C= (Cs intersect Ds) .
+
+    eq universal C= universal = universal .
+
+    vars A B C D : Subset .
+
+    eq {V ; Ap} C= {} = contradiction .
+
+    op _U_ : Subset Subset -> Subset [ctor assoc comm] .
+    eq contradiction U B = contradiction .
+    eq universal U B = universal .
+    eq (As C= Cs) U (Bs C= Ds) = (As U Bs) C= (Cs U Ds) .
+    eq A U A = A .
+
+    op complement : Subset -> Subset .
+    eq complement(As C= Bs) = (Bs \ As) C= Bs .
+
+    op _\_ : Subset Subset -> Subset .
+    eq (As C= Bs) \ universal = {} C= Bs .
+    eq A \ ({} C= Bs) = A .
+    eq (As \ Bs) C= Bs = {} C= Bs .
+    eq (As C= Bs) \ (Cs C= Ds) = (As \ Cs) C= (Bs \ Cs) .
+
+    op _in_ : Val Subset -> Bool .
+    eq V in (As C= Bs) = V in As and V in Bs .
+
+    --- sort Cardinal .
+    --- subsort Nat < Cardinal .
+    --- op omega0 : -> Cardinal [ctor] .
+    --- op |_| : Subset -> Cardinal .
+    --- op |_| : SimpleSet -> Cardinal .
+    --- op |_| : PreSet -> Cardinal .
+    --- eq | As C= Bs | = | As | .
+    --- eq |{}| = 0 .
+    --- eq |{Ap}| = | Ap | .
+    --- eq | empty | = 0 .
+    --- eq | V, Ap | = V + | Ap | .
+endfm
+
+--- set trace on .
+--- red ({1,2,3} C= {1,2,3,4,5}) U ({1,2,3} C= {1,2,3,4,6}) .
+--- red 1 in 'X C= {} .
+

@@ -55,7 +55,7 @@ mod LOGIC-CORE is
     op nil : -> State [ctor] .
     op state : Instr Unification Stack -> State [ctor] .
     op runGenerator : Qid Generator State -> State [ctor] .
-    op runUnif : State -> State [ctor] .
+    op runUnif : Instr Unification Stack -> State [ctor] .
     op __ : State State -> State [ctor assoc id: nil] .
 
     var B Bs Bs1 Bs2 : Block .
@@ -92,7 +92,7 @@ mod LOGIC-CORE is
     crl [generateNew]:
         [ Counter, Blocks, runGenerator(X, Gen, state(Is, Unif, S)) States ]
         =>
-        [ Counter, Blocks, runUnif(state(Is, (X = N) Unif, S)) States runGenerator(X, NewGen, state(Is, Unif, S)) ]
+        [ Counter, Blocks, runUnif(Is, (X = N) Unif, S) States runGenerator(X, NewGen, state(Is, Unif, S)) ]
         if < NewGen ; N > := next(Gen) .
 
     --- eq runGenerator(X, nil, State) = nil .
@@ -115,6 +115,7 @@ mod LOGIC-CORE is
         [ Counter, (L1 |-> Bs1) (L2 |-> Bs2) Blocks , States makeBlockStates(Bs1 Bs2, Unif, S) ] .
 
     vars N M : Int .
+    var Deps : VarList .
     eq state(int(N) Is, Unif, S) = state(Is, Unif, N S) .
     eq state(str(Str) Is, Unif, S) = state(Is, Unif, s(Str) S) .
     eq state(v(X) Is, Unif, S) = state(Is, Unif, X S) .
@@ -128,53 +129,55 @@ mod LOGIC-CORE is
     eq state(nonvar Is, Unif, V S) = if not isVar(V, Unif) then state(Is, Unif, V S) else nil fi .
     eq state(functor(X, N) Is, Unif, S) = state(Is, Unif, func(X, take(N, S)) drop(N, S)) .
     eq state(nth(N) Is, Unif, S) = state(Is, Unif, moveNth(S, N)) .
-
-    var Deps : VarList .
     eq state(choose Is, Unif, X S) = state(chooseDeps(dependencies(X, Unif)) Is, Unif, S) .
+    eq state(unif Is, Unif, V W S) = runUnif(Is, (V = W) Unif, S) .
+    eq state(dif Is, Unif, V W S) = runUnif(Is, (V /= W) Unif, S) .
+
+    eq runUnif(Is, Unif, S) = doUnif(performUnif(Unif), Is, S) .
 
     crl [add]:
         [ Counter, Blocks, state(add Is, Unif, V W S) States ]
         =>
-        [ Counter + 1, Blocks, States runUnif(state(Is, (X = func('add, V W)) Unif, X S)) ]
+        [ Counter + 1, Blocks, runUnif(Is, (X = func('add, V W)) Unif, X S) States ]
         if X := qid(string(Counter, 10)) .
 
     crl [sub]:
         [ Counter, Blocks, state(sub Is, Unif, V W S) States ]
         =>
-        [ Counter + 1, Blocks, States runUnif(state(Is, (X = func('sub, V W)) Unif, X S)) ]
+        [ Counter + 1, Blocks, runUnif(Is, (X = func('sub, V W)) Unif, X S) States ]
         if X := qid(string(Counter, 10)) .
 
     crl [mul]:
         [ Counter, Blocks, state(mul Is, Unif, V W S) States ]
         =>
-        [ Counter + 1, Blocks, States runUnif(state(Is, (X = func('mul, V W)) Unif, X S)) ]
+        [ Counter + 1, Blocks, runUnif(Is, (X = func('mul, V W)) Unif, X S) States ]
         if X := qid(string(Counter, 10)) .
 
     crl [mod]:
         [ Counter, Blocks, state(mod Is, Unif, V W S) States ]
         =>
-        [ Counter + 1, Blocks, States runUnif(state(Is, (X = func('mod, V W)) Unif, X S)) ]
+        [ Counter + 1, Blocks, runUnif(Is, (X = func('mod, V W)) Unif, X S) States ]
         if X := qid(string(Counter, 10)) .
 
     rl [lt]:
         [ Counter, Blocks, state(lt Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States runUnif(state(Is, constraint('lt, V, W) Unif, S)) ] .
+        [ Counter, Blocks, runUnif(Is, constraint('lt, V, W) Unif, S) States ] .
 
     rl [lte]:
         [ Counter, Blocks, state(lte Is, Unif, V W S) States ]
         =>
-        [ Counter, Blocks, States runUnif(state(Is, constraint('lte, V, W) Unif, S)) ] .
+        [ Counter, Blocks, runUnif(Is, constraint('lte, V, W) Unif, S) States ] .
 
     rl [fresh]:
         [ Counter, Blocks, state(fresh Is, Unif, S) States ]
         =>
-        [ Counter + 1, Blocks, States state(Is, Unif, qid(string(Counter, 10)) S) ] .
+        [ Counter + 1, Blocks, state(Is, Unif, qid(string(Counter, 10)) S) States ] .
 
     rl [call]:
         [ Counter, Blocks, state(call Is, Unif, func(F, Args) S) States ]
         =>
-        [ Counter, Blocks, States state(lbl(F) goto Is, Unif, Args S) ] .
+        [ Counter, Blocks, state(lbl(F) goto Is, Unif, Args S) States ] .
 
     eq chooseDeps(none) = nil .
 
@@ -439,23 +442,8 @@ mod LOGIC-CORE is
            computed(Ws) := domToVals(Dom2) .
     eq domToVals(Dom) = insufficient [owise] .
 
-    rl [unif]:
-        [ Counter, Blocks, state(unif Is, Unif, V W S) States ]
-        =>
-        [ Counter, Blocks, States runUnif(state(Is, (V = W) Unif, S)) ] .
-
-    rl [dif]:
-        [ Counter, Blocks, state(dif Is, Unif, V W S) States ]
-        =>
-        [ Counter, Blocks, States runUnif(state(Is, (V /= W) Unif, S)) ] .
-
-    rl [runUnif]:
-        [ Counter, Blocks, runUnif(state(Is, Unif, S)) States ]
-        =>
-        [ Counter, Blocks, States doUnif(performUnif(Unif), state(Is, Unif, S)) ] .
-
-    op doUnif : Unification State -> State .
-    eq doUnif(NewUnif, state(Is, Unif, S)) =
+    op doUnif : Unification Instr Stack -> State .
+    eq doUnif(NewUnif, Is, S) =
         if unifPossible(NewUnif) then
             state(Is, NewUnif, S)
         else nil fi .

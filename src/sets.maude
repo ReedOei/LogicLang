@@ -85,14 +85,15 @@ fmod SETS is
     vars Low High Low1 High1 Low2 High2 : ExInt .
 
     eq ints \ range(Low, High) = range(negInf, sub(Low, 1)) U range(High + 1, posInf) .
+    eq ints \ {N ; Ap} = range(negInf, sub(N,1)) U range(N + 1, posInf) U (ints \ {Ap}) .
 
-    eq range(posInf, negInf) = empty .
-    eq range(N, negInf) = empty .
-    eq range(posInf, M) = empty .
-    eq range(negInf, negInf) = empty .
-    eq range(posInf, posInf) = empty .
+    eq range(posInf, negInf) = {} .
+    eq range(N, negInf) = {} .
+    eq range(posInf, M) = {} .
+    eq range(negInf, negInf) = {} .
+    eq range(posInf, posInf) = {} .
     eq range(negInf, posInf) = universal .
-    ceq range(N, M) = empty if N > M .
+    ceq range(N, M) = {} if N > M .
 
     ceq range(Low1, High1) U range(Low2, High2) = range(Low1, High2)
         if isLte(Low2, High1) and isLte(Low1, Low2) and isLte(Low1, High1) and isLte(Low2, High2) .
@@ -104,7 +105,7 @@ fmod SETS is
     eq universal U As = universal .
 
     op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
-    eq empty intersect As = empty .
+    eq {} intersect As = {} .
     eq universal intersect As = As .
     eq As intersect As = As .
     eq As intersect {} = {} .
@@ -119,6 +120,7 @@ fmod SETS is
     eq V in (As U Bs) = V in As or V in Bs .
     eq V in universal = true .
     eq N in ints = true .
+    eq N in range(Low, High) = isLte(Low, N) and isLte(N, High) .
 
     op _\_ : SimpleSet SimpleSet -> SimpleSet .
     eq As \ universal = {} .
@@ -134,6 +136,7 @@ fmod SETS is
 
     sort Subset .
     subsort Subset < Val .
+    eq notVar(As C= Bs) = true .
     --- Represents when we say something like {1,2,3,4} C= {}, this will instantly kill the current state when it's running.
     op contradiction : -> Subset [ctor] .
     op universalsub : -> Subset [ctor] .
@@ -199,6 +202,7 @@ fmod SETS is
     eq universeOf(N) = ints .
     eq universeOf(V) = universal [owise] .
 
+    --- NOTE: This function is DOES NOT give a set of values from a set, just the values used to define the set.
     op asVals : SimpleSet -> Stack .
     op asVals : PreSet -> Stack .
     eq asVals(empty) = nil .
@@ -208,6 +212,9 @@ fmod SETS is
     eq asVals(universal) = nil .
     eq asVals(ints) = nil .
     eq asVals(As U Bs) = asVals(As) asVals(Bs) .
+    eq asVals(range(N, M)) = N M .
+    eq asVals(range(negInf, M)) = M .
+    eq asVals(range(N, posInf)) = N .
 endfm
 
 --- set trace on .

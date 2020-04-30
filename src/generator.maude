@@ -15,7 +15,7 @@ mod GENERATOR is
     eq Gen nogen = Gen .
 
     op [_.._] : ExInt ExInt -> Generator [ctor] .
-    ceq [ Low .. High ] = nogen if not isLte(Low + 1, High) .
+    ceq [ Low .. High ] = nogen if not isLte(Low, High + 1) .
 
     op finset : PreSet -> Generator [ctor] .
     eq finset(empty) = nogen .

@@ -432,26 +432,35 @@ endm
 --- set trace on .
 --- set trace eq off .
 
+--- rew query(
+---     v('X)
+---     int(1)
+---     singleton
+---     int(2)
+---     singleton
+---     union
+---     v('X)
+---     elementof
+---     v('X)
+---     choose
+---     ,
+---     nil
+--- ) .
+
 rew query(
-    v('X)
-    int(1)
-    singleton
-    int(2)
-    singleton
-    union
-    v('X)
-    elementof
-    v('X)
-    choose
-    ,
-    nil
+    func('in, 'X 0 2)
+    func('in, 'Y 0 2)
+    func('in, 'Z 0 2)
+    func('sum, 'N [ 'X 'Y 'Z ])
+    func('square, 'N)
+    func('gt, 'N 2)
+    func('choose, 'N)
 ) .
 
---- rew query(
----     func('in, 'X 0 2)
----     func('sum, 'N [ 'X 'Y 'Z ])
----     func('square, 'N)
----     func('gt, 'N 6)
----     func('choose, 'N)
---- ) .
+--- set trace on .
+--- set trace eq off .
+--- rew [ 20, mt, state(choose, ('N = func('add, 'Y 'X)) constraint('in, 'X, range(0, 2) C= ints) constraint('in, 'Y, range(0, 2) C= ints) constraint('in, func('add, 'Y 'X), range(1, posInf) C= ints), 'N 'Y 'X) ] .
+
+--- red performUnif((0 = '2) (0 = '4) (0 = '5) (0 = '7) (0 = '8) (0 = 'Y) (0 = 'Z) ('0 = func('cons, 0 func('cons, 0 func('empty, nil)))) ('1 = 'X) ('3 = func('cons, 0 func('empty, nil))) ('6 = func('empty, nil)) ('N = 'X) ('X = func('mul, '11 '11)) constraint('in, '11, range(0, posInf) C= ints) constraint('in, 'X, empty C= ints)) .
+--- --- TODO :THERES AN EMPTY AT THE END THAT'S PROBABLY THE ISSUE
 

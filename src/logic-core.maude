@@ -204,8 +204,12 @@ mod LOGIC-CORE is
     op findDeps : VarList Stack Unification -> VarList .
     eq findDeps(Vars, nil, Unif) = Vars .
 
+    var Ex : ExInt .
+
     eq findDeps(Vars, N Vs, Unif) = findDeps(Vars, Vs, Unif) .
     eq findDeps(Vars, s(Str) Vs, Unif) = findDeps(Vars, Vs, Unif) .
+    eq findDeps(Vars, Ex Vs, Unif) = findDeps(Vars, Vs, Unif) .
+
     eq findDeps(Vars, func(F, Args) Vs, Unif) = findDeps(Vars, Vs Args, Unif) .
     eq findDeps(Vars, (Xs C= Ys) Vs, Unif) = findDeps(Vars, Vs asVals(Xs) asVals(Ys), Unif) .
 
@@ -340,10 +344,16 @@ mod LOGIC-CORE is
     ceq (func(Op, W V) = func(Op, T V)) = (W = T) if cancellable(Op) .
     ceq (func(Op, V W) = func(Op, T V)) = (W = T) if cancellable(Op) and commutes(Op) .
 
-    var VSet : Subset .
+    var VSet WSet : Subset .
 
     ceq constraint('in, V, VSet) = mt if V in VSet .
     ceq constraint('in, V, VSet) = failure if not V in VSet .
+
+    eq constraint('lt, V, M) = constraint('in, V, range(negInf, sub(M, 1)) C= ints) .
+    eq constraint('lte, V, M) = constraint('in, V, range(negInf, M) C= ints) .
+    eq constraint('lt, N, W) = constraint('in, W, range(N + 1, posInf) C= ints) .
+    eq constraint('lte, N, W) = constraint('in, W, range(N, posInf) C= ints) .
+    eq constraint('in, V, VSet) constraint('in, V, WSet) = constraint('in, V, VSet intersect WSet) .
 
     op orderConstraint : Qid -> Bool .
     eq orderConstraint('lt) = true .
@@ -406,6 +416,9 @@ mod LOGIC-CORE is
     eq setSubstitute(X, W, ints) = ints .
     eq setSubstitute(X, W, universal) = universal .
 
+    vars Low High : ExInt .
+    eq setSubstitute(X, W, range(Low, High)) = range(Low, High) .
+
     op presubstitute : Qid Val PreSet -> PreSet .
     eq presubstitute(X, W, empty) = empty .
     eq presubstitute(X, W, V) = substitute(X, W, V) .
@@ -441,22 +454,26 @@ mod LOGIC-CORE is
     eq inEquation(X, Unif) = false [owise] .
 
     op unifToDom : Qid Unification -> Subset .
-    eq unifToDom(X, mt) = universalsub .
-    eq unifToDom(X, constraint('lt, X, M) Unif) = (range(negInf, sub(M, 1)) C= ints) intersect unifToDom(X, Unif) .
-    eq unifToDom(X, constraint('lte, X, M) Unif) = (range(negInf, M) C= ints) intersect unifToDom(X, Unif) .
-    eq unifToDom(X, constraint('lt, N, X) Unif) = (range(N + 1, posInf) C= ints) intersect unifToDom(X, Unif) .
-    eq unifToDom(X, constraint('lte, N, X) Unif) = (range(N, posInf) C= ints) intersect unifToDom(X, Unif) .
-    eq unifToDom(X, constraint('in, X, Xs C= Ys) Unif) = (Xs C= Ys) intersect unifToDom(X, Unif) .
-    eq unifToDom(X, (X = N) Unif) = range(N, N) C= ints .
-    eq unifToDom(X, (X /= N) Unif) = ((range(negInf, sub(N, 1) U range(N + 1, posInf)) C= ints) intersect unifToDom(X, Unif)) .
-    eq unifToDom(X, UIt Unif) = unifToDom(X, Unif) [owise] .
+    eq unifToDom(X, (X = Y) Unif) = unifToDomVar(Y, Unif) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, Unif) = unifToDomVar(X, Unif) [owise] .
+
+    op unifToDomVar : Qid Unification -> Subset .
+    eq unifToDomVar(X, mt) = universalsub .
+    eq unifToDomVar(X, constraint('lt, X, M) Unif) = (range(negInf, sub(M, 1)) C= ints) intersect unifToDomVar(X, Unif) .
+    eq unifToDomVar(X, constraint('lte, X, M) Unif) = (range(negInf, M) C= ints) intersect unifToDomVar(X, Unif) .
+    eq unifToDomVar(X, constraint('lt, N, X) Unif) = (range(N + 1, posInf) C= ints) intersect unifToDomVar(X, Unif) .
+    eq unifToDomVar(X, constraint('lte, N, X) Unif) = (range(N, posInf) C= ints) intersect unifToDomVar(X, Unif) .
+    eq unifToDomVar(X, constraint('in, X, Xs C= Ys) Unif) = (Xs C= Ys) intersect unifToDomVar(X, Unif) .
+    eq unifToDomVar(X, (X = N) Unif) = range(N, N) C= ints .
+    eq unifToDomVar(X, (X /= N) Unif) = ((range(negInf, sub(N, 1) U range(N + 1, posInf)) C= ints) intersect unifToDomVar(X, Unif)) .
+    eq unifToDomVar(X, UIt Unif) = unifToDomVar(X, Unif) [owise] .
 
     vars Dom1 Dom2 Dom : Subset .
 
     op doUnif : Unification Instr Stack -> State .
     eq doUnif(NewUnif, Is, S) =
-        if unifPossible(NewUnif) then
-            state(Is, NewUnif, S)
+        if unifPossible(NewUnif)
+        then state(Is, NewUnif, S)
         else nil fi .
 
     --- Stop on the first solution found .
@@ -486,6 +503,9 @@ mod LOGIC-CORE is
     eq reachable(X, Y Vs, constraint(Op, func(F, ArgsF Y ArgsG), T) Unif) = reachable(X, Y T ArgsF ArgsG Vs, Unif) .
 
     eq reachable(X, Y Vs, Unif) = reachable(X, Vs, Unif) [owise] .
+
+    ceq state(Is, (X = Y) Unif, S) = state(Is, Unif, S)
+        if not reachable(X, S, Unif) .
 
     crl [garbageCollectMid]:
         [ Counter, Blocks, state(Is, UIt Unif, S) States ]

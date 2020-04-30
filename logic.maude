@@ -47,6 +47,20 @@ mod LOGIC-MACRO is
         end
         makeSeq(N + 1, X, Fs) .
 
+    op query : Instr Stack -> Configuration .
+    eq query(Is, Fs) = blocks(
+        stdlib
+        block 'main start
+            toInstr(varsOf(Fs))
+            Is
+            lbl('mainSeq0)
+            goto
+        end
+
+        sequence 'mainSeq start
+            Fs
+        end) .
+
     op query : Stack -> Configuration .
     eq query(Fs) = blocks(
         stdlib
@@ -417,26 +431,27 @@ endm
 
 --- set trace on .
 --- set trace eq off .
+
 rew query(
-    --- func('in, 'Len 0 10)
-    --- func('choose, 'Len)
-
-    --- func('nat, 'Len)
-    --- func('choose, 'Len)
-
-    --- func('even, 'N)
-    --- func('square, 'N)
-    --- func('gt, 6 'N)
-    --- func('gt, 'N 0)
-    --- func('choose, 'N)
-
-    func('in, 'X 0 2)
-    func('sum, 'N [ 'X 'Y 'Z ])
-    func('square, 'N)
-    func('gt, 'N 6)
-    func('choose, 'N)
-
-    --- func('range, 'X 0 10)
-    --- func('sum, 'N 'X)
+    v('X)
+    int(1)
+    singleton
+    int(2)
+    singleton
+    union
+    v('X)
+    elementof
+    v('X)
+    choose
+    ,
+    nil
 ) .
+
+--- rew query(
+---     func('in, 'X 0 2)
+---     func('sum, 'N [ 'X 'Y 'Z ])
+---     func('square, 'N)
+---     func('gt, 'N 6)
+---     func('choose, 'N)
+--- ) .
 

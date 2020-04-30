@@ -6,7 +6,6 @@ fmod SETS is
     sort PreSet SimpleSet .
     subsort Val < PreSet .
     subsort Qid < SimpleSet . --- Set variables.
-    subsort SimpleSet < Val .
 
     op empty : -> PreSet [ctor] .
     op _;_ : PreSet PreSet -> PreSet [ctor assoc comm id: empty] .
@@ -30,6 +29,7 @@ fmod SETS is
     eq precontains(V, Ap) = false [owise] .
 
     op universal : -> SimpleSet [ctor] .
+    op ints : -> SimpleSet [ctor] .
     op {} : -> SimpleSet [ctor] .
     op {_} : PreSet -> SimpleSet [ctor] .
     eq {empty} = {} .
@@ -38,6 +38,7 @@ fmod SETS is
     eq {Ap} U {Bp} = {Ap ; Bp} .
     eq As U As = As .
     eq {} U As = As .
+    eq universal U As = universal .
 
     op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
     eq As intersect As = As .
@@ -63,18 +64,22 @@ fmod SETS is
     eq (As U Bs) \ Cs = (As \ Cs) U (Bs \ Cs) .
 
     sort Subset .
+    subsort Subset < Val .
     --- Represents when we say something like {1,2,3,4} C= {}, this will instantly kill the current state when it's running.
     op contradiction : -> Subset [ctor] .
-    op universal : -> Subset [ctor] .
+    op universalsub : -> Subset [ctor] .
     op _C=_ : SimpleSet SimpleSet -> Subset [ctor] .
+    op _C=_ : Subset Subset -> Subset .
+
+    eq (As C= Bs) C= (Cs C= Ds) = As C= Cs .
 
     op _intersect_ : Subset Subset -> Subset [assoc comm] .
-    eq universal intersect A = A .
+    eq universalsub intersect A = A .
     eq contradiction intersect A = contradiction .
     eq A intersect A = A .
     eq (As C= Cs) intersect (Bs C= Ds) = (As intersect Bs) C= (Cs intersect Ds) .
 
-    eq universal C= universal = universal .
+    eq universal C= universal = universalsub .
 
     vars A B C D : Subset .
 
@@ -82,15 +87,16 @@ fmod SETS is
 
     op _U_ : Subset Subset -> Subset [ctor assoc comm] .
     eq contradiction U B = contradiction .
-    eq universal U B = universal .
+    eq universalsub U B = universalsub .
     eq (As C= Cs) U (Bs C= Ds) = (As U Bs) C= (Cs U Ds) .
     eq A U A = A .
+    eq (As C= Bs) U (Bs C= Cs) = Bs C= Cs .
 
     op complement : Subset -> Subset .
     eq complement(As C= Bs) = (Bs \ As) C= Bs .
 
     op _\_ : Subset Subset -> Subset .
-    eq (As C= Bs) \ universal = {} C= Bs .
+    eq (As C= Bs) \ universalsub = {} C= Bs .
     eq A \ ({} C= Bs) = A .
     eq (As \ Bs) C= Bs = {} C= Bs .
     eq (As C= Bs) \ (Cs C= Ds) = (As \ Cs) C= (Bs \ Cs) .
@@ -98,17 +104,40 @@ fmod SETS is
     op _in_ : Val Subset -> Bool .
     eq V in (As C= Bs) = V in As and V in Bs .
 
-    --- sort Cardinal .
-    --- subsort Nat < Cardinal .
-    --- op omega0 : -> Cardinal [ctor] .
-    --- op |_| : Subset -> Cardinal .
-    --- op |_| : SimpleSet -> Cardinal .
-    --- op |_| : PreSet -> Cardinal .
-    --- eq | As C= Bs | = | As | .
-    --- eq |{}| = 0 .
-    --- eq |{Ap}| = | Ap | .
-    --- eq | empty | = 0 .
-    --- eq | V, Ap | = V + | Ap | .
+    --- op buildUnion : Subset -> Subset .
+    --- op buildUnion : SimpleSet -> SimpleSet .
+    --- eq buildUnion({}) = {} .
+    --- eq buildUnion({V ; Ap}) = V U buildUnion(Ap) .
+    --- eq buildUnion(As U Bs) = buildUnion(As) U buildUnion(Bs) .
+    --- eq buildUnion(universal) = universal .
+    --- eq buildUnion(universalsub) = universalsub .
+    --- eq buildUnion(As C= Bs) = buildUnion(As) C= buildUnion(Bs) .
+
+    sort Cardinal .
+    subsort Nat < Cardinal .
+    op omega0 : -> Cardinal [ctor] .
+    op |_| : Subset -> Cardinal .
+    op |_| : SimpleSet -> Cardinal .
+    op |_| : PreSet -> Cardinal .
+    eq | As C= Bs | = | As | .
+    eq |{}| = 0 .
+    eq |{Ap}| = | Ap | .
+    eq | empty | = 0 .
+    eq | V ; Ap | = 1 + | Ap | .
+
+    op universeOf : Val -> SimpleSet .
+    eq universeOf(N) = ints .
+    eq universeOf(V) = universal [owise] .
+
+    op asVals : SimpleSet -> Stack .
+    op asVals : PreSet -> Stack .
+    eq asVals(empty) = nil .
+    eq asVals(V ; Ap) = V asVals(Ap) .
+    eq asVals({}) = nil .
+    eq asVals({Ap}) = asVals(Ap) .
+    eq asVals(universal) = nil .
+    eq asVals(ints) = nil .
+    eq asVals(As U Bs) = asVals(As) asVals(Bs) .
 endfm
 
 --- set trace on .

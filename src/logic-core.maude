@@ -23,7 +23,7 @@ mod LOGIC-CORE is
     op nth : Int -> Instr [ctor] .
     op functor : Qid Nat -> Instr [ctor] .
 
-    ops emptyset union intersection complement elementof cardinality : -> Instr [ctor] .
+    ops emptyset subset singleton union intersection complement elementof cardinality : -> Instr [ctor] .
 
     op nil : -> Instr [ctor] .
     op __ : Instr Instr -> Instr [ctor assoc id: nil] .
@@ -126,7 +126,16 @@ mod LOGIC-CORE is
     eq state(v(X) Is, Unif, S) = state(Is, Unif, X S) .
     eq state(lbl(L) Is, Unif, S) = state(Is, Unif, L S) .
     eq state(functor(X, N) Is, Unif, S) = state(Is, Unif, func(X, take(N, S)) drop(N, S)) .
-    eq state(emptyset Is, Unif, S) = state(Is, Unif, func('set, {}) S) .
+    eq state(emptyset Is, Unif, S) = state(Is, Unif, ({} C= universal) S) .
+
+    --- Set operations
+    eq state(singleton Is, Unif, V S) = state(Is, Unif, ({V} C= universeOf(V)) S) .
+    eq state(union Is, Unif, V W S) = state(Is, Unif, (V U W) S) .
+    eq state(subset Is, Unif, V W S) = state(Is, Unif, (V C= W) S) .
+    eq state(intersection Is, Unif, V W S) = state(Is, Unif, (V intersect W) S) .
+    eq state(complement Is, Unif, V S) = state(Is, Unif, complement(V) S) .
+    eq state(elementof Is, Unif, V W S) = state(Is, constraint('in, V, W) Unif, S) .
+    eq state(cardinality Is, Unif, V S) = state(Is, Unif, | V | S ) .
 
     --- Stack operations
     eq state(swap Is, Unif, V W S) = state(Is, Unif, W V S) .
@@ -142,8 +151,10 @@ mod LOGIC-CORE is
     --- Unification
     eq state(unif Is, Unif, V W S) = runUnif(Is, (V = W) Unif, S) .
     eq state(dif Is, Unif, V W S) = runUnif(Is, (V /= W) Unif, S) .
-    --- Fail
+
+    --- Control Flow
     eq state(fail Is, Unif, S) = nil .
+    eq state(call Is, Unif, func(F, Args) S) = state(lbl(F) goto Is, Unif, Args S) .
 
     --- Choose
     eq state(choose Is, Unif, X S) = state(chooseDeps(dependencies(X, Unif)) Is, Unif, S) .
@@ -164,11 +175,6 @@ mod LOGIC-CORE is
         [ Counter, Blocks, state(fresh Is, Unif, S) States ]
         =>
         [ Counter + 1, Blocks, state(Is, Unif, qid(string(Counter, 10)) S) States ] .
-
-    rl [call]:
-        [ Counter, Blocks, state(call Is, Unif, func(F, Args) S) States ]
-        =>
-        [ Counter, Blocks, state(lbl(F) goto Is, Unif, Args S) States ] .
 
     eq chooseDeps(none) = nil .
 
@@ -194,6 +200,7 @@ mod LOGIC-CORE is
     eq dependencies(Vs, Unif) = findDeps(none, Vs, Unif) .
 
     var Op : Qid .
+    var Xs Ys : SimpleSet .
 
     op findDeps : VarList Stack Unification -> VarList .
     eq findDeps(Vars, nil, Unif) = Vars .
@@ -201,6 +208,7 @@ mod LOGIC-CORE is
     eq findDeps(Vars, N Vs, Unif) = findDeps(Vars, Vs, Unif) .
     eq findDeps(Vars, s(Str) Vs, Unif) = findDeps(Vars, Vs, Unif) .
     eq findDeps(Vars, func(F, Args) Vs, Unif) = findDeps(Vars, Vs Args, Unif) .
+    eq findDeps(Vars, (Xs C= Ys) Vs, Unif) = findDeps(Vars, Vs asVals(Xs) asVals(Ys), Unif) .
 
     eq findDeps(Vars, X Vs, (X = T) Unif) = findDeps(Vars, X Vs T, Unif) .
     eq findDeps(Vars, X Vs, (X /= T) Unif) = findDeps(Vars, X Vs T, Unif) .
@@ -231,7 +239,7 @@ mod LOGIC-CORE is
     eq varsOf(s(Str)) = none .
     eq varsOf(func(F, Args)) = varsOf(Args) .
     eq varsOf(nil) = none .
-    eq varsOf(V Vs) = varsOf(V) : varsOf(Vs) .
+    eq varsOf(V W Vs) = varsOf(V) : varsOf(W Vs) .
     eq varsOf(mt) = none .
     eq varsOf((V = W) Unif) = varsOf(V) : varsOf(W) : varsOf(Unif) .
     eq varsOf((V /= W) Unif) = varsOf(V) : varsOf(W) : varsOf(Unif) .
@@ -244,7 +252,7 @@ mod LOGIC-CORE is
     eq inVars(Y, s(Str)) = false .
     eq inVars(Y, func(F, Args)) = inVars(Y, Args) .
     eq inVars(Y, nil) = false .
-    eq inVars(Y, V Vs) = inVars(Y, V) or inVars(Y, Vs) .
+    eq inVars(Y, V W Vs) = inVars(Y, V) or inVars(Y, W Vs) .
     eq inVars(Y, mt) = false .
     eq inVars(Y, (V = W) Unif) = inVars(Y, V) or inVars(Y, W) or inVars(Y, Unif) .
     eq inVars(Y, (V /= W) Unif) = inVars(Y, V) or inVars(Y, W) or inVars(Y, Unif) .
@@ -369,6 +377,8 @@ mod LOGIC-CORE is
     eq makeEqualities(nil, nil) = mt .
     eq makeEqualities(V Vs, W Ws) = (V = W) makeEqualities(Vs, Ws) .
 
+    vars Xp Yp : PreSet .
+
     op substitute : Qid Val Unification -> Unification .
     op substitute : Qid Val Stack -> Stack .
     op substitute : Qid Val Val -> Val .
@@ -381,8 +391,21 @@ mod LOGIC-CORE is
     eq substitute(X, W, N) = N .
     eq substitute(X, W, s(Str)) = s(Str) .
     eq substitute(X, W, func(F, Args)) = func(F, substitute(X, W, Args)) .
+    eq substitute(X, W, (Xs C= Ys)) = setSubstitute(X, W, Xs) C= setSubstitute(X, W, Ys) .
     eq substitute(X, W, nil) = nil .
-    eq substitute(X, W, V Vs) = substitute(X, W, V) substitute(X, W, Vs) .
+    eq substitute(X, W, V T Vs) = substitute(X, W, V) substitute(X, W, T Vs) .
+
+    op setSubstitute : Qid Val SimpleSet -> SimpleSet .
+    eq setSubstitute(X, W, {}) = {} .
+    eq setSubstitute(X, W, {Xp}) = {presubstitute(X,W,Xp)} .
+    eq setSubstitute(X, W, Xs U Ys) = setSubstitute(X, W, Xs) U setSubstitute(X, W, Ys) .
+    eq setSubstitute(X, W, ints) = ints .
+    eq setSubstitute(X, W, universal) = universal .
+
+    op presubstitute : Qid Val PreSet -> PreSet .
+    eq presubstitute(X, W, empty) = empty .
+    eq presubstitute(X, W, V) = substitute(X, W, V) .
+    eq presubstitute(X, W, V ; T ; Xp) = substitute(X, W, V) ; presubstitute(X, W, T ; Xp) .
 
     op performUnif : Unification -> Unification .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))

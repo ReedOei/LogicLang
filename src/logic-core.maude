@@ -4,7 +4,6 @@ mod LOGIC-CORE is
     protecting CONVERSION .
 
     protecting LOGIC-STACK .
-    protecting DOMAIN .
     protecting GENERATOR .
     protecting SETS .
 
@@ -341,6 +340,11 @@ mod LOGIC-CORE is
     ceq (func(Op, W V) = func(Op, T V)) = (W = T) if cancellable(Op) .
     ceq (func(Op, V W) = func(Op, T V)) = (W = T) if cancellable(Op) and commutes(Op) .
 
+    var VSet : Subset .
+
+    ceq constraint('in, V, VSet) = mt if V in VSet .
+    ceq constraint('in, V, VSet) = failure if not V in VSet .
+
     op orderConstraint : Qid -> Bool .
     eq orderConstraint('lt) = true .
     eq orderConstraint('lte) = true .
@@ -436,17 +440,18 @@ mod LOGIC-CORE is
     eq inEquation(X, (X = V) Unif) = true .
     eq inEquation(X, Unif) = false [owise] .
 
-    op unifToDom : Qid Unification -> Domain .
-    eq unifToDom(X, mt) = universal .
-    eq unifToDom(X, constraint('lt, X, M) Unif) = intersect(range(negInf, sub(M, 1)), unifToDom(X, Unif)) .
-    eq unifToDom(X, constraint('lte, X, M) Unif) = intersect(range(negInf, M), unifToDom(X, Unif)) .
-    eq unifToDom(X, constraint('lt, N, X) Unif) = intersect(range(N + 1, posInf), unifToDom(X, Unif)) .
-    eq unifToDom(X, constraint('lte, N, X) Unif) = intersect(range(N, posInf), unifToDom(X, Unif)) .
-    eq unifToDom(X, (X = N) Unif) = range(N, N) .
-    eq unifToDom(X, (X /= N) Unif) = intersect(range(negInf, sub(N, 1)) U range(N + 1, posInf), unifToDom(X, Unif)) .
+    op unifToDom : Qid Unification -> Subset .
+    eq unifToDom(X, mt) = universalsub .
+    eq unifToDom(X, constraint('lt, X, M) Unif) = (range(negInf, sub(M, 1)) C= ints) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, constraint('lte, X, M) Unif) = (range(negInf, M) C= ints) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, constraint('lt, N, X) Unif) = (range(N + 1, posInf) C= ints) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, constraint('lte, N, X) Unif) = (range(N, posInf) C= ints) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, constraint('in, X, Xs C= Ys) Unif) = (Xs C= Ys) intersect unifToDom(X, Unif) .
+    eq unifToDom(X, (X = N) Unif) = range(N, N) C= ints .
+    eq unifToDom(X, (X /= N) Unif) = ((range(negInf, sub(N, 1) U range(N + 1, posInf)) C= ints) intersect unifToDom(X, Unif)) .
     eq unifToDom(X, UIt Unif) = unifToDom(X, Unif) [owise] .
 
-    vars Dom1 Dom2 Dom : Domain .
+    vars Dom1 Dom2 Dom : Subset .
 
     op doUnif : Unification Instr Stack -> State .
     eq doUnif(NewUnif, Is, S) =

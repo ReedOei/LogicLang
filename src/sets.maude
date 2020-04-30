@@ -1,7 +1,42 @@
 load logic-stack
 
+fmod EX-INT is
+    protecting INT .
+
+    vars N M : Int .
+
+    sort ExInt .
+    subsort Int < ExInt .
+    ops posInf negInf : -> ExInt [ctor] .
+    eq posInf + N = posInf .
+    eq negInf + N = negInf .
+    eq posInf - N = posInf .
+    eq negInf - N = negInf .
+
+    vars Low High : ExInt .
+
+    op maxExInt : ExInt ExInt -> ExInt [comm] .
+    eq maxExInt(posInf, Low) = posInf .
+    eq maxExInt(negInf, High) = High .
+    eq maxExInt(N, M) = max(N, M) .
+
+    op minExInt : ExInt ExInt -> ExInt  [comm].
+    eq minExInt(posInf, Low) = Low .
+    eq minExInt(negInf, High) = negInf .
+    eq minExInt(N, M) = min(N, M) .
+
+    vars E1 E2 : ExInt .
+
+    op isLte : ExInt ExInt -> Bool .
+    eq isLte(negInf, High) = true .
+    eq isLte(Low, posInf) = true .
+    eq isLte(N, M) = N <= M .
+    eq isLte(E1, E2) = false [owise] .
+endfm
+
 fmod SETS is
     protecting LOGIC-STACK .
+    protecting EX-INT .
 
     sort PreSet SimpleSet .
     subsort Val < PreSet .
@@ -25,14 +60,42 @@ fmod SETS is
     vars As Bs Cs Ds : SimpleSet .
 
     op precontains : Val PreSet -> Bool .
-    eq precontains(V, (Ap ; V ; Bp)) = true .
-    eq precontains(V, Ap) = false [owise] .
+    eq precontains(N, (Ap ; N ; Bp)) = true .
+    eq precontains(N, Ap) = false [owise] .
+
+    eq precontains(s(S1), (Ap ; s(S1) ; Bp)) = true .
+    eq precontains(s(S1), Ap) = false [owise] .
+
+    eq precontains(func(F, Args), (Ap ; func(F, Args) ; Bp)) = true .
+    eq precontains(func(F, Args), Ap) = false [owise] .
+
+    eq precontains((As C= Bs), (Ap ; (As C= Bs) ; Bp)) = true .
+    eq precontains((As C= Bs), Ap) = false [owise] .
 
     op universal : -> SimpleSet [ctor] .
     op ints : -> SimpleSet [ctor] .
     op {} : -> SimpleSet [ctor] .
     op {_} : PreSet -> SimpleSet [ctor] .
     eq {empty} = {} .
+
+    sort Range .
+    subsort Range < SimpleSet .
+    op range : ExInt ExInt -> Range [ctor] .
+
+    vars Low High Low1 High1 Low2 High2 : ExInt .
+
+    eq ints \ range(Low, High) = range(negInf, sub(Low, 1)) U range(High + 1, posInf) .
+
+    eq range(posInf, negInf) = empty .
+    eq range(N, negInf) = empty .
+    eq range(posInf, M) = empty .
+    eq range(negInf, negInf) = empty .
+    eq range(posInf, posInf) = empty .
+    eq range(negInf, posInf) = universal .
+    ceq range(N, M) = empty if N > M .
+
+    ceq range(Low1, High1) U range(Low2, High2) = range(Low1, High2)
+        if isLte(Low2, High1) and isLte(Low1, Low2) and isLte(Low1, High1) and isLte(Low2, High2) .
 
     op _U_ : SimpleSet SimpleSet -> SimpleSet [comm assoc] .
     eq {Ap} U {Bp} = {Ap ; Bp} .
@@ -41,15 +104,21 @@ fmod SETS is
     eq universal U As = universal .
 
     op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
+    eq empty intersect As = empty .
+    eq universal intersect As = As .
     eq As intersect As = As .
     eq As intersect {} = {} .
     eq {V ; Ap} intersect {V ; Bp} = {V} U ({Ap} intersect {Bp}) .
     eq As intersect (Bs U Cs) = (As intersect Bs) U (As intersect Cs) .
+    eq range(Low1, High1) intersect range(Low2, High2) =
+        range(maxExInt(Low1, Low2), minExInt(High1, High2)) .
 
     op _in_ : Val SimpleSet -> Bool .
     eq V in {} = false .
     eq V in {Ap} = precontains(V, Ap) .
     eq V in (As U Bs) = V in As or V in Bs .
+    eq V in universal = true .
+    eq N in ints = true .
 
     op _\_ : SimpleSet SimpleSet -> SimpleSet .
     eq As \ universal = {} .
@@ -103,6 +172,7 @@ fmod SETS is
 
     op _in_ : Val Subset -> Bool .
     eq V in (As C= Bs) = V in As and V in Bs .
+    eq V in universalsub = true .
 
     --- op buildUnion : Subset -> Subset .
     --- op buildUnion : SimpleSet -> SimpleSet .

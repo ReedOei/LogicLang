@@ -1,44 +1,54 @@
-load domain
 load sets
 
 mod GENERATOR is
-    protecting DOMAIN .
-    protecting LOGIC-STACK .
+    protecting SETS .
 
     sorts Generator GeneratorRes .
 
     op <_;_> : Generator Stack -> GeneratorRes [ctor] .
 
-    subsort Domain < Generator .
-    op nil : -> Generator .
+    --- subsort Subset < Generator .
+    op nogen : -> Generator .
     op __ : Generator Generator -> Generator [ctor assoc] .
 
-    eq nil Gens = Gens .
-    eq Gens nil = Gens .
+    eq nogen Gen = Gen .
+    eq Gen nogen = Gen .
 
-    vars Dom Dom1 Dom2 : Domain .
+    op [_.._] : ExInt ExInt -> Generator [ctor] .
+    ceq [ Low .. High ] = nogen if not isLte(Low + 1, High) .
+
+    op finset : PreSet -> Generator [ctor] .
+    eq finset(empty) = nogen .
+
+    vars Dom Dom1 Dom2 : Subset .
     vars Low High : ExInt .
     vars N M : Int .
 
-    op makeGenerator : Domain -> Generator .
-    eq makeGenerator(empty) = nil .
-    eq makeGenerator(universal) = range(negInf, 0) range(1, posInf) .
-    eq makeGenerator(range(Low, High)) = range(Low, High) .
-    eq makeGenerator(range(Low, High) U Dom) = range(Low, High) makeGenerator(Dom) .
+    vars As Bs : SimpleSet .
+    vars Ap Bp : PreSet .
 
-    vars Gen NewGen Gens : Generator .
+    op makeGenerator : Subset -> Generator .
+    eq makeGenerator({} C= Bs) = nogen .
+    eq makeGenerator(ints C= As) = [negInf .. 0] [1 .. posInf] .
+    eq makeGenerator(range(Low, High) C= As) = [Low .. High] .
+    eq makeGenerator({Ap} C= Bs) = finset(Ap) .
+    eq makeGenerator(As U Bs) = makeGenerator(As) makeGenerator(Bs) .
 
-    eq empty Gen = Gen .
-    eq Gen empty = Gen .
+    --- TODO: What to do in this case?
+    --- eq makeGenerator(universalsub) = range(negInf, 0) range(1, posInf) .
+
+    vars Gen Gen1 Gen2 NewGen Gens : Generator .
 
     op done : Generator -> Bool .
-    eq done(Gen) = Gen == nil or Gen == empty .
+    eq done(nogen) = true .
+    eq done(Gen) = false [owise] .
+
+    vars V W : Val .
 
     op next : Generator -> GeneratorRes .
-    eq next(range(negInf, N)) = < range(negInf, sub(N, 1)) ; N > .
-    eq next(range(N, High)) = < range(N + 1, High) ; N > .
-    ceq next(universal) = < Gen range(1, posInf) ; N >
-        if < Gen ; N > := next(range(negInf, 0)) .
+    eq next([negInf .. N]) = < [negInf .. sub(N, 1)] ; N > .
+    eq next([N .. High]) = < [N + 1 .. High] ; N > .
+    eq next(finset(V ; Ap)) = < finset(Ap) ; V > .
     ceq next(Gen Gens) = < Gens NewGen ; N >
         if < NewGen ; N > := next(Gen) .
 
@@ -54,8 +64,9 @@ mod GENERATOR is
            < FinalGen ; Vs > := genMany(NewGen, C) .
 
     --- Will yield computed(Vs) if the domain is finite
-    op domToVals : Domain -> Computed .
+    op domToVals : Subset -> Computed .
     eq domToVals(empty) = computed(nil) .
+    eq domToVals({Ap}) = computed(asVals(Ap)) .
     eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
     ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
         if computed(Vs) := domToVals(Dom1) /\

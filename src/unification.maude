@@ -29,6 +29,9 @@ fmod UNIFICATION is
     op _/=_ : Val Val -> UnificationItem [ctor comm] .
     op failure : -> UnificationItem [ctor] .
 
+    --- Should be defined as appropriate for extending modules.
+    op isSpecial : Qid -> Bool .
+
     var Unif : Unification .
     var UIt : UnificationItem .
     vars As Bs : SimpleSet .
@@ -86,7 +89,6 @@ fmod UNIFICATION is
     eq makeEqualities(nil, nil) = mt .
     eq makeEqualities(V Vs, W Ws) = (V = W) makeEqualities(Vs, Ws) .
 
-
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
@@ -94,8 +96,6 @@ fmod UNIFICATION is
     eq unifPossible((X = T) Unif) = not inVars(X, T) and unifPossible(Unif) .
     eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = isSpecial(F) and isSpecial(G) and unifPossible(Unif) .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
-
-    op isSpecial : Qid -> Bool .
 
     op performUnif : Unification -> Unification .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))

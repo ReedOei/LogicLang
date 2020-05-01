@@ -461,12 +461,12 @@ endm
 
 rew query(
     v('X)
-    int(10)
-    int(1)
-    intrange
-    intset
-    setdiff
+    v('X)
+    v('X)
+    mul
+    int(16)
+    unif
     ,
-    nil
+    func('nat, 'X)
 ) .
 

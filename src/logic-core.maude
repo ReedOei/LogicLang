@@ -285,7 +285,13 @@ mod LOGIC-CORE is
     --- We always have V^2 >= 0
     eq constraint('lte, 0, func('mul, V V)) = mt .
     eq constraint('lt, func('mul, V V), 0) = failure .
-    ceq (N = func('mul, V V)) = failure if N < 0 .
+
+    ceq (N = func('mul, V V)) = constraint('in, V, {M ; - M} C= ints)
+        if computed(M) := sqrt(N) .
+
+    --- If N is not a square this can't possible work.
+    ceq (N = func('mul, V V)) = failure
+        if insufficient := sqrt(N) .
 
     ceq (func(Op, V W) = func(Op, V T)) = (W = T) if cancellable(Op) .
     ceq (func(Op, W V) = func(Op, T V)) = (W = T) if cancellable(Op) .
@@ -295,6 +301,7 @@ mod LOGIC-CORE is
 
     ceq constraint('in, V, VSet) = mt if V in VSet .
     ceq constraint('in, V, VSet) = failure if not V in VSet .
+    eq constraint('in, V, {W} C= Ys) = (V = W) .
 
     eq constraint('lt, V, M) = constraint('in, V, range(negInf, sub(M, 1)) C= ints) .
     eq constraint('lte, V, M) = constraint('in, V, range(negInf, M) C= ints) .

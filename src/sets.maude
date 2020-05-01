@@ -110,6 +110,12 @@ fmod SETS is
     eq As intersect {} = {} .
     eq {V ; Ap} intersect {V ; Bp} = {V} U ({Ap} intersect {Bp}) .
     eq As intersect (Bs U Cs) = (As intersect Bs) U (As intersect Cs) .
+    eq {N ; Ap} intersect range(Low, High) =
+        if isLte(Low, N) and isLte(N, High) then
+            {N} U ({Ap} intersect range(Low, High))
+        else
+            ({Ap} intersect range(Low, High))
+        fi .
     eq range(Low1, High1) intersect range(Low2, High2) =
         range(maxExInt(Low1, Low2), minExInt(High1, High2)) .
 

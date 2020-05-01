@@ -62,5 +62,28 @@ fmod LOGIC-STACK is
     eq moveNth(V Vs, 0) = V Vs .
     ceq moveNth(V Vs, s(N)) = W V Ws
          if W Ws := moveNth(Vs, N) .
+
+    var K : Int .
+
+    op sqrt : Int -> Computed .
+    ceq sqrt(M) =
+        if K * K == M then
+            computed(K)
+        else
+            insufficient
+        fi
+
+        if K := sqrt(1, M) .
+
+    op sqrt : Int Int -> Int .
+    eq sqrt(N,0) = 0 .
+    ceq sqrt(N, M) =
+        if K == N + 1 or K == N then
+            N
+        else
+            sqrt(K, M)
+        fi
+
+        if K := (N + (M quo N)) quo 2 .
 endfm
 

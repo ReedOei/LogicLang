@@ -62,15 +62,5 @@ mod GENERATOR is
     ceq genMany(Gen, s(C)) = < FinalGen ; M Vs >
         if < NewGen ; M > := next(Gen) /\
            < FinalGen ; Vs > := genMany(NewGen, C) .
-
-    --- Will yield computed(Vs) if the domain is finite
-    op domToVals : Subset -> Computed .
-    eq domToVals(empty) = computed(nil) .
-    eq domToVals({Ap}) = computed(asVals(Ap)) .
-    eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
-    ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
-        if computed(Vs) := domToVals(Dom1) /\
-           computed(Ws) := domToVals(Dom2) .
-    eq domToVals(Dom) = insufficient [owise] .
 endm
 

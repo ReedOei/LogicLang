@@ -95,14 +95,13 @@ fmod SETS is
     eq range(negInf, posInf) = universal .
     ceq range(N, M) = {} if N > M .
 
-    ceq range(Low1, High1) U range(Low2, High2) = range(Low1, High2)
-        if isLte(Low2, High1) and isLte(Low1, Low2) and isLte(Low1, High1) and isLte(Low2, High2) .
-
     op _U_ : SimpleSet SimpleSet -> SimpleSet [comm assoc] .
     eq {Ap} U {Bp} = {Ap ; Bp} .
     eq As U As = As .
     eq {} U As = As .
     eq universal U As = universal .
+    ceq range(Low1, High1) U range(Low2, High2) = range(Low1, High2)
+        if isLte(Low2, High1) and isLte(Low1, High2) .
 
     op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
     eq {} intersect As = {} .
@@ -126,6 +125,8 @@ fmod SETS is
     eq As \ universal = {} .
     eq {} \ Bs = {} .
     eq As \ {} = As .
+    eq {N ; Ap} \ ints = {Ap} \ ints .
+    eq range(Low, High) \ ints = {} .
     eq {V ; Ap} \ {Bp} =
         if precontains(V, Bp) then
             {Ap} \ {Bp}
@@ -171,20 +172,20 @@ fmod SETS is
     eq (As C= Bs) \ universalsub = {} C= Bs .
     eq A \ ({} C= Bs) = A .
     eq (As \ Bs) C= Bs = {} C= Bs .
-    eq (As C= Bs) \ (Cs C= Ds) = (As \ Cs) C= (Bs \ Cs) .
+    eq (As C= Bs) \ (Cs C= Ds) = (As \ Cs) C= Bs .
 
     op _in_ : Val Subset -> Bool .
     eq V in (As C= Bs) = V in As and V in Bs .
     eq V in universalsub = true .
 
-    --- op buildUnion : Subset -> Subset .
-    --- op buildUnion : SimpleSet -> SimpleSet .
-    --- eq buildUnion({}) = {} .
-    --- eq buildUnion({V ; Ap}) = V U buildUnion(Ap) .
-    --- eq buildUnion(As U Bs) = buildUnion(As) U buildUnion(Bs) .
-    --- eq buildUnion(universal) = universal .
-    --- eq buildUnion(universalsub) = universalsub .
-    --- eq buildUnion(As C= Bs) = buildUnion(As) C= buildUnion(Bs) .
+    op buildUnion : Subset -> Subset .
+    op buildUnion : SimpleSet -> SimpleSet .
+    eq buildUnion({}) = {} .
+    eq buildUnion({V ; Ap}) = V U buildUnion(Ap) .
+    eq buildUnion(As U Bs) = buildUnion(As) U buildUnion(Bs) .
+    eq buildUnion(universal) = universal .
+    eq buildUnion(universalsub) = universalsub .
+    eq buildUnion(As C= Bs) = buildUnion(As) C= buildUnion(Bs) .
 
     sort Cardinal .
     subsort Nat < Cardinal .
@@ -215,6 +216,19 @@ fmod SETS is
     eq asVals(range(N, M)) = N M .
     eq asVals(range(negInf, M)) = M .
     eq asVals(range(N, posInf)) = N .
+
+    vars Dom Dom1 Dom2 : Subset .
+    vars Vs Ws : Stack .
+
+    --- Will yield computed(Vs) if the domain is finite
+    op domToVals : Subset -> Computed .
+    eq domToVals(empty) = computed(nil) .
+    eq domToVals({Ap}) = computed(asVals(Ap)) .
+    eq domToVals(range(N, M)) = computed(buildRange(N, M)) .
+    ceq domToVals(Dom1 U Dom2) = computed(Vs Ws)
+        if computed(Vs) := domToVals(Dom1) /\
+           computed(Ws) := domToVals(Dom2) .
+    eq domToVals(Dom) = insufficient [owise] .
 endfm
 
 --- set trace on .

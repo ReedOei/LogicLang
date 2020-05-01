@@ -1,0 +1,3 @@
+[submodule "MFE"]
+	path = MFE
+	url = https://github.com/maude-team/MFE

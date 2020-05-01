@@ -228,6 +228,9 @@ mod LOGIC-CORE is
     eq (N = func('sub, V M)) = (V = N + M) .
     eq (N = func('sub, M V)) = (V = N + M) .
 
+    --- TODO: This doesn't work for some reason?
+    --- eq X /= N = constraint('in, X, (ints \ {N}) C= ints) .
+
     ceq constraint(Op, N, func('add, V M)) = constraint(Op, sub(N, M), V) if orderConstraint(Op) .
     ceq constraint(Op, N, func('add, M V)) = constraint(Op, sub(N, M), V) if orderConstraint(Op) .
     ceq constraint(Op, N, func('sub, V M)) = constraint(Op, N + M, V) if orderConstraint(Op) .
@@ -243,6 +246,7 @@ mod LOGIC-CORE is
     eq func('sub, N M) = sub(N, M) .
     eq func('sub, V 0) = V .
     eq func('sub, V V) = 0 .
+    --- We prefer 2X instead of X + X because some of the below rules will use this information to check parity.
     eq func('add, V V) = func('mul, 2 V) .
     eq func('mod, N M) = N rem M .
     eq func('mod, V V) = 0 .
@@ -289,7 +293,7 @@ mod LOGIC-CORE is
     ceq (N = func('mul, V V)) = constraint('in, V, {M ; - M} C= ints)
         if computed(M) := sqrt(N) .
 
-    --- If N is not a square this can't possible work.
+    --- If N is not a square this can't possibly be true.
     ceq (N = func('mul, V V)) = failure
         if insufficient := sqrt(N) .
 

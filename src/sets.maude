@@ -106,6 +106,7 @@ fmod SETS is
     op _intersect_ : SimpleSet SimpleSet -> SimpleSet [assoc comm] .
     eq {} intersect As = {} .
     eq universal intersect As = As .
+    eq ints intersect range(Low, High) = range(Low, High) .
     eq As intersect As = As .
     eq As intersect {} = {} .
     eq {V ; Ap} intersect {V ; Bp} = {V} U ({Ap} intersect {Bp}) .

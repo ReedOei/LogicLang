@@ -26,13 +26,16 @@ mod GENERATOR is
 
     vars As Bs : SimpleSet .
     vars Ap Bp : PreSet .
+    var S : Subset .
 
     op makeGenerator : Subset -> Generator .
-    eq makeGenerator({} C= Bs) = nogen .
-    eq makeGenerator(ints C= As) = [negInf .. 0] [1 .. posInf] .
-    eq makeGenerator(range(Low, High) C= As) = [Low .. High] .
-    eq makeGenerator({Ap} C= Bs) = finset(Ap) .
+    op makeGenerator : SimpleSet -> Generator .
+    eq makeGenerator({}) = nogen .
+    eq makeGenerator(ints) = [negInf .. 0] [1 .. posInf] .
+    eq makeGenerator(range(Low, High)) = [Low .. High] .
+    eq makeGenerator({Ap}) = finset(Ap) .
     eq makeGenerator(As U Bs) = makeGenerator(As) makeGenerator(Bs) .
+    eq makeGenerator(As C= Bs) = makeGenerator(As) .
 
     --- TODO: What to do in this case?
     --- eq makeGenerator(universalsub) = range(negInf, 0) range(1, posInf) .

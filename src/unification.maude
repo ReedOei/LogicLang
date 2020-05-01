@@ -92,14 +92,18 @@ fmod UNIFICATION is
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
-    eq unifPossible((V /= W) Unif) = not unifPossible(performUnif((V = W) Unif)) .
+    eq unifPossible((X /= Y) (X = V) (Y = V) Unif) = false .
     eq unifPossible((X = T) Unif) = not inVars(X, T) and unifPossible(Unif) .
     eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = isSpecial(F) and isSpecial(G) and unifPossible(Unif) .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
 
+    op specialVal : Val -> Bool .
+    eq specialVal(func(F, Args)) = isSpecial(F) .
+    eq specialVal(V) = false [owise] .
+
     op performUnif : Unification -> Unification .
     ceq performUnif((X = T) Unif) = performUnif((X = T) substitute(X, T, Unif))
-        if not inVars(X, T) and notVar(T) and inVars(X, Unif) .
+        if not inVars(X, T) and notVar(T) and inVars(X, Unif) and not specialVal(T) .
     ceq performUnif((X = Y) Unif) = performUnif((X = Y) substitute(X, Y, Unif))
         if X =/= Y and inVars(X, Unif) and inVars(Y, Unif) .
 
@@ -132,7 +136,7 @@ fmod UNIFICATION is
     eq unifToDomVar(X, constraint('lte, N, X) Unif) = (range(N, posInf) C= ints) intersect unifToDomVar(X, Unif) .
     eq unifToDomVar(X, constraint('in, X, Xs C= Ys) Unif) = (Xs C= Ys) intersect unifToDomVar(X, Unif) .
     eq unifToDomVar(X, (X = N) Unif) = range(N, N) C= ints .
-    eq unifToDomVar(X, (X /= N) Unif) = ((range(negInf, sub(N, 1) U range(N + 1, posInf)) C= ints) intersect unifToDomVar(X, Unif)) .
+    eq unifToDomVar(X, (X /= N) Unif) = ((range(negInf, sub(N, 1)) U range(N + 1, posInf)) C= ints) intersect unifToDomVar(X, Unif) .
     eq unifToDomVar(X, UIt Unif) = unifToDomVar(X, Unif) [owise] .
 
     vars Xp Yp : PreSet .

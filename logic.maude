@@ -426,6 +426,29 @@ mod LOGIC-MACRO is
             lt
             goto
         end
+
+        block 'dif start
+            dif
+            goto
+        end
+
+        block 'add start
+            add
+            unif
+            goto
+        end
+
+        block 'add3 start
+            add
+            add
+            unif
+            goto
+        end
+
+        --- TODO: Add an ability to print out the current state/states
+        block 'logstate start
+            goto
+        end
         .
 endm
 
@@ -447,26 +470,91 @@ endm
 ---     nil
 --- ) .
 
---- rew query(
----     func('nat, 'X)
----     func('in, 'X 0 8)
----     func('nat, 'Y)
----     func('nat, 'Z)
----     func('even, 'Y)
----     func('sum, 'N [ 'X 'Y 'Z ])
----     func('square, 'N)
----     func('gt, 'N 10)
----     func('choose, 'N)
---- ) .
-
+--- set trace on .
 rew query(
-    v('X)
-    v('X)
-    v('X)
-    mul
-    int(16)
-    unif
-    ,
-    func('nat, 'X)
+    func('nat, 'A)
+    func('nat, 'B)
+
+    func('nat, 'C)
+
+    func('nat, 'D)
+    func('nat, 'E)
+    func('nat, 'F)
+    func('nat, 'G)
+    func('nat, 'H)
+    func('nat, 'I)
+
+    func('nat, 'N)
+
+    func('add3, 'A 'B 'C 'N)
+    func('add3, 'D 'E 'F 'N)
+    func('add3, 'G 'H 'I 'N)
+
+    func('add3, 'A 'D 'G 'N)
+    func('add3, 'B 'E 'H 'N)
+    func('add3, 'C 'F 'I 'N)
+
+    func('add3, 'A 'E 'I 'N)
+    func('add3, 'C 'E 'G 'N)
+
+    func('dif, 'A 'B)
+    func('dif, 'A 'C)
+    func('dif, 'A 'D)
+    func('dif, 'A 'E)
+    func('dif, 'A 'F)
+    func('dif, 'A 'G)
+    func('dif, 'A 'H)
+    func('dif, 'A 'I)
+
+    func('dif, 'B 'C)
+    func('dif, 'B 'D)
+    func('dif, 'B 'E)
+    func('dif, 'B 'F)
+    func('dif, 'B 'G)
+    func('dif, 'B 'H)
+    func('dif, 'B 'I)
+
+    func('dif, 'C 'D)
+    func('dif, 'C 'E)
+    func('dif, 'C 'F)
+    func('dif, 'C 'G)
+    func('dif, 'C 'H)
+    func('dif, 'C 'I)
+
+    func('dif, 'D 'E)
+    func('dif, 'D 'F)
+    func('dif, 'D 'G)
+    func('dif, 'D 'H)
+    func('dif, 'D 'I)
+
+    func('dif, 'E 'F)
+    func('dif, 'E 'G)
+    func('dif, 'E 'H)
+    func('dif, 'E 'I)
+
+    func('dif, 'F 'G)
+    func('dif, 'F 'H)
+    func('dif, 'F 'I)
+
+    func('dif, 'G 'H)
+    func('dif, 'F 'I)
+
+    func('dif, 'H 'I)
+
+    func('choose, 'N)
 ) .
+
+--- TODO: Add a failed state store, e.g., something in the configuration that stores all the failed states we've seen, and if we even run into one of those states, just immediately kill the state.
+--- TODO: Add failure reasons, for example, if a predicate failed because of some conflicting constraint like X > 5 and X < 3 then we can discover new constraints about the problem and add them to our environment.
+
+--- rew query(
+---     v('X)
+---     v('X)
+---     v('X)
+---     mul
+---     int(16)
+---     unif
+---     ,
+---     func('nat, 'X)
+--- ) .
 

@@ -92,7 +92,7 @@ fmod UNIFICATION is
     op unifPossible : Unification -> Bool .
     eq unifPossible(mt) = true .
     eq unifPossible(failure Unif) = false .
-    eq unifPossible((X /= Y) (X = V) (Y = V) Unif) = false .
+    eq unifPossible((V /= W) (V = T) (W = T) Unif) = false .
     eq unifPossible((X = T) Unif) = not inVars(X, T) and unifPossible(Unif) .
     eq unifPossible((func(F, ArgsF) = func(G, ArgsG)) Unif) = isSpecial(F) and isSpecial(G) and unifPossible(Unif) .
     eq unifPossible(UIt Unif) = unifPossible(Unif) [owise] .
